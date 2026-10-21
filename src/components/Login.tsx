@@ -1,8 +1,8 @@
 import { useState, type FormEvent } from 'react';
 import { supabase } from '../lib/supabase';
 import { showToast } from '../lib/alert';
-import Header from './Header';
 import Loader from './Loader';
+import { IconFileText } from './Icons';
 
 export default function Login() {
   const [email, setEmail] = useState('setdakeuangan25@gmail.com');
@@ -18,48 +18,67 @@ export default function Login() {
   }
 
   return (
-    <>
+    <div className="modern-login-canvas">
       <Loader show={busy} />
-      <Header />
-      <div className="login-wrap">
-        <div className="form-box login-box">
-          <h5 className="mb-4 border-bottom pb-3 fw-bold" style={{ color: '#1e293b' }}>Masuk</h5>
-          <form onSubmit={onSubmit}>
-            <div className="mb-3">
-              <label className="form-label fw-bold">Email</label>
-              <input
-                type="email"
-                className="form-control"
-                value={email}
-                required
-                autoComplete="username"
-                onChange={(e) => setEmail(e.target.value)}
-              />
+      <div className="modern-login-card">
+        <div className="d-flex align-items-center gap-3 mb-3">
+          <div className="login-emblem mb-0">
+            <IconFileText size={26} />
+          </div>
+          <div>
+            <h1 className="login-title">SPJ Monitoring</h1>
+            <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)' }}>
+              Setda Kab. Kotawaringin Barat
             </div>
-            <div className="mb-4">
-              <label className="form-label fw-bold">Password</label>
-              <input
-                type="password"
-                className="form-control"
-                value={password}
-                required
-                autoComplete="current-password"
-                onChange={(e) => setPassword(e.target.value)}
-              />
-            </div>
-            <button
-              type="submit"
-              className="btn fw-bold py-2 w-100"
-              style={{ backgroundColor: '#4f46e5', color: 'white', borderRadius: 8 }}
-            >
-              MASUK
-            </button>
-            <div className="text-center mt-3 text-muted" style={{ fontSize: '0.8rem' }}>
-              Klik <strong>MASUK</strong> untuk masuk ke Sistem Monitoring SPJ.
-            </div>
-          </form>
+          </div>
         </div>
+
+        <p className="login-subtitle">
+          Sistem Informasi Verifikasi Berkas SPJ Sub Bagian Keuangan Sekretariat Daerah.
+        </p>
+
+        <form onSubmit={onSubmit}>
+          <div className="mb-3">
+            <label className="form-label-modern">Email Verifikator</label>
+            <input
+              type="email"
+              className="form-input-modern"
+              value={email}
+              required
+              autoComplete="username"
+              placeholder="nama@kobar.go.id"
+              onChange={(e) => setEmail(e.target.value)}
+            />
+          </div>
+
+          <div className="mb-4">
+            <div className="d-flex justify-content-between align-items-center mb-1">
+              <label className="form-label-modern mb-0">Kata Sandi</label>
+            </div>
+            <input
+              type="password"
+              className="form-input-modern"
+              value={password}
+              required
+              autoComplete="current-password"
+              placeholder="••••••••"
+              onChange={(e) => setPassword(e.target.value)}
+            />
+          </div>
+
+          <button
+            type="submit"
+            className="btn-dark-pill w-100 justify-content-center py-3"
+            style={{ fontSize: '0.92rem' }}
+          >
+            Masuk ke Sistem &rarr;
+          </button>
+
+          <div className="login-helper-box text-center">
+            Mode Akses Terverifikasi · Klik <strong>Masuk ke Sistem</strong> untuk langsung menjelajahi dashboard monitoring.
+          </div>
+        </form>
       </div>
-    </>
+    </div>
   );
 }

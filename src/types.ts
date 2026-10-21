@@ -62,6 +62,7 @@ export interface SpjInput {
 export interface Filters {
   bagian: string;
   kategori: string;
+  status: string;
   search: string;
   dateField: DateField;
   dateFrom: string;
@@ -73,12 +74,13 @@ export interface Filters {
 export const DEFAULT_FILTERS: Filters = {
   bagian: 'ALL',
   kategori: 'ALL',
+  status: 'ALL',
   search: '',
   dateField: 'tglMasuk',
   dateFrom: '',
   dateTo: '',
-  sortKey: '',
-  sortAsc: true,
+  sortKey: 'tglMasuk',
+  sortAsc: false,
 };
 
 export interface Stats {

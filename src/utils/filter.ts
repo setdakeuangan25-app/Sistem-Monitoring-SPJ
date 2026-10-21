@@ -9,6 +9,14 @@ export function getFilteredData(list: Spj[], f: Filters): Spj[] {
     const matchBagian = f.bagian === 'ALL' || d.bagian.toUpperCase() === f.bagian;
     const matchKategori = f.kategori === 'ALL' || d.kategori === f.kategori;
 
+    const itemStatus = (d.status || 'PROSES').toUpperCase();
+    const matchStatus =
+      !f.status || f.status === 'ALL'
+        ? true
+        : f.status === 'PROSES'
+        ? !d.status || d.status === null || itemStatus === 'PROSES' || itemStatus === 'BELUM PROSES'
+        : itemStatus === f.status;
+
     const statTxt = d.status ? String(d.status) : 'belum proses';
     const global = `${d.no} ${d.bagian} ${d.kategori} ${d.nama} ${d.nomList} ${d.nominal} ${statTxt} ${d.uraian} ${d.tglMasuk} ${d.tglKeluar} ${d.tglBerkas} ${d.tglBayar} ${d.ket}`.toLowerCase();
     const matchSearch = global.includes(val);
@@ -24,7 +32,7 @@ export function getFilteredData(list: Spj[], f: Filters): Spj[] {
         if (f.dateTo && itemDate > f.dateTo) matchTanggal = false;
       }
     }
-    return matchBagian && matchKategori && matchSearch && matchTanggal;
+    return matchBagian && matchKategori && matchStatus && matchSearch && matchTanggal;
   });
 
   if (f.sortKey !== '') {
@@ -42,6 +50,12 @@ export function getFilteredData(list: Spj[], f: Filters): Spj[] {
         if (isNaN(nb)) nb = asc ? Infinity : -Infinity;
         if (na === nb) return 0;
         return asc ? na - nb : nb - na;
+      }
+      if (key === 'tglMasuk' || key === 'tglKeluar' || key === 'tglBerkas' || key === 'tglBayar') {
+        if (!sa && !sb) return 0;
+        if (!sa) return 1;
+        if (!sb) return -1;
+        return asc ? sa.localeCompare(sb) : sb.localeCompare(sa);
       }
       const la = sa.toLowerCase();
       const lb = sb.toLowerCase();

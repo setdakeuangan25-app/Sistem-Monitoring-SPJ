@@ -1,37 +1,70 @@
-import { useEffect, useState } from 'react';
+import React from 'react';
+import { IconPlus, IconRefresh, IconMenu, IconSidebar } from './Icons';
 
 interface Props {
-  email?: string;
-  onLogout?: () => void;
+  title: string;
+  subtitle: string;
+  showNewButton?: boolean;
+  onNew?: () => void;
+  onReload?: () => void;
+  sidebarOpen?: boolean;
+  onToggleSidebar?: () => void;
 }
 
-export default function Header({ email, onLogout }: Props) {
-  const [now, setNow] = useState(() => new Date().toLocaleString('id-ID'));
-
-  useEffect(() => {
-    const t = setInterval(() => setNow(new Date().toLocaleString('id-ID')), 1000);
-    return () => clearInterval(t);
-  }, []);
-
+export default function Header({
+  title,
+  subtitle,
+  showNewButton,
+  onNew,
+  onReload,
+  sidebarOpen,
+  onToggleSidebar,
+}: Props) {
   return (
-    <div className="header-app d-flex justify-content-between align-items-center">
-      <div className="d-flex align-items-center">
-        <span style={{ fontSize: '1.8rem', marginRight: 15 }}>📑</span>
-        <div>
-          <h1 className="header-title">SISTEM MONITORING SPJ - SETDA KOBAR</h1>
-          <div style={{ fontSize: 11, color: '#64748b', marginTop: 3, fontWeight: 500 }}>
-            Sub Bagian Keuangan Sekretariat Daerah Kotawaringin Barat
-          </div>
+    <header className="panel-topbar">
+      <div className="topbar-left">
+        {onToggleSidebar && (
+          <button
+            type="button"
+            className={`btn-toggle-sidebar ${!sidebarOpen ? 'is-collapsed' : ''}`}
+            onClick={onToggleSidebar}
+            title={sidebarOpen ? 'Sembunyikan menu' : 'Tampilkan menu'}
+          >
+            {sidebarOpen ? <IconSidebar size={18} /> : <IconMenu size={18} />}
+            <span className="btn-toggle-label">{sidebarOpen ? 'Ciutkan Menu' : 'Menu'}</span>
+          </button>
+        )}
+
+        <div className="topbar-text-group">
+          <h2 className="topbar-title">{title}</h2>
+          <p className="topbar-subtitle">{subtitle}</p>
         </div>
       </div>
-      <div className="header-actions">
-        <div className="clock-badge">{now}</div>
-        {onLogout && (
-          <button type="button" className="btn-logout" onClick={onLogout} title={email}>
-            Keluar
+
+      <div className="topbar-actions">
+        {onReload && (
+          <button
+            type="button"
+            className="btn-topbar-action btn-topbar-reload"
+            onClick={onReload}
+            title="Segarkan data dari server"
+          >
+            <IconRefresh size={15} />
+            <span className="d-none d-sm-inline">Refresh</span>
+          </button>
+        )}
+        {showNewButton && onNew && (
+          <button
+            type="button"
+            className="btn-dark-pill btn-topbar-new"
+            onClick={onNew}
+            title="Input Berkas SPJ Baru"
+          >
+            <IconPlus size={15} />
+            <span>SPJ Baru</span>
           </button>
         )}
       </div>
-    </div>
+    </header>
   );
 }

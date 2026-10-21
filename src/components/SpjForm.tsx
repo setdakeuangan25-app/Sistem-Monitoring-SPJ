@@ -2,6 +2,13 @@ import { useRef, useState, type FormEvent, type MouseEvent } from 'react';
 import { BAGIAN_LIST, KATEGORI_LIST, type Spj, type SpjInput, type Status } from '../types';
 import { formatRibuan, formatRp, onlyDigits, titleCase, todayLocal } from '../utils/format';
 import { showToast } from '../lib/alert';
+import {
+  IconPlus,
+  IconTrash,
+  IconCalendar,
+  IconCheckCircle,
+  IconFileText,
+} from './Icons';
 
 interface Props {
   editing: Spj | null;
@@ -13,7 +20,7 @@ interface Props {
 interface Row {
   key: number;
   nama: string;
-  nominal: string; // sudah berformat ribuan
+  nominal: string;
 }
 
 export default function SpjForm({ editing, namaHistory, onSubmit, onCancel }: Props) {
@@ -31,7 +38,11 @@ export default function SpjForm({ editing, namaHistory, onSubmit, onCancel }: Pr
   const [ket, setKet] = useState(editing?.ket ?? '');
   const [rows, setRows] = useState<Row[]>(() =>
     editing && editing.pegawai.length > 0
-      ? editing.pegawai.map((p) => ({ key: nextKey(), nama: p.nama, nominal: formatRibuan(String(p.nominal)) }))
+      ? editing.pegawai.map((p) => ({
+          key: nextKey(),
+          nama: p.nama,
+          nominal: formatRibuan(String(p.nominal)),
+        }))
       : [{ key: nextKey(), nama: '', nominal: '' }],
   );
 
@@ -43,11 +54,11 @@ export default function SpjForm({ editing, namaHistory, onSubmit, onCancel }: Pr
   const addRow = () => setRows((rs) => [...rs, { key: nextKey(), nama: '', nominal: '' }]);
 
   const removeRow = (key: number) => {
-    if (rows.length <= 1) return void showToast('Peringatan', 'Minimal harus ada 1 pegawai!', 'warning');
+    if (rows.length <= 1)
+      return void showToast('Peringatan', 'Minimal harus ada 1 pegawai!', 'warning');
     setRows((rs) => rs.filter((r) => r.key !== key));
   };
 
-  // Klik field tanggal kosong -> isi hari ini (perilaku sama dengan versi lama)
   const fillToday = (setter: (v: string) => void) => (e: MouseEvent<HTMLInputElement>) => {
     if (!e.currentTarget.value) setter(todayLocal());
   };
@@ -60,7 +71,11 @@ export default function SpjForm({ editing, namaHistory, onSubmit, onCancel }: Pr
       .map((r) => ({ nama: r.nama, nominal: Number(r.digits) }));
 
     if (pegawai.length === 0) {
-      return void showToast('Peringatan', 'Isi minimal 1 pegawai lengkap dengan nama dan nominal.', 'warning');
+      return void showToast(
+        'Peringatan',
+        'Isi minimal 1 pegawai lengkap dengan nama dan nominal.',
+        'warning',
+      );
     }
 
     await onSubmit({
@@ -70,123 +85,299 @@ export default function SpjForm({ editing, namaHistory, onSubmit, onCancel }: Pr
       kategori,
       uraian: uraian.trim(),
       status: (status || null) as Status,
-      tglMasuk, tglKeluar, tglBerkas, tglBayar,
+      tglMasuk,
+      tglKeluar,
+      tglBerkas,
+      tglBayar,
       ket: ket.trim(),
       pegawai,
     });
   }
 
   return (
-    <div className="container-fluid">
-      <div className="form-box">
-        <h5 className="mb-4 border-bottom pb-3 fw-bold" style={{ color: '#1e293b' }}>Form Penginputan Data SPJ</h5>
+    <div className="modern-form-container">
+      <div className="form-card-wrap">
+        <div className="form-header-group d-flex justify-content-between align-items-center">
+          <div>
+            <h2 className="form-main-title">
+              {editing ? 'Edit Berkas SPJ' : 'Formulir Input SPJ Baru'}
+            </h2>
+            <p className="form-main-desc">
+              Setiap kelompok data dibedakan dengan aksen warna khusus untuk kemudahan verifikasi.
+            </p>
+          </div>
+          {editing && (
+            <span
+              className="badge bg-light text-dark border px-3 py-2"
+              style={{ borderRadius: 9999, fontSize: '0.8rem', fontWeight: 700 }}
+            >
+              No: {editing.no || 'SPJ-' + editing.id.slice(0, 6)}
+            </span>
+          )}
+        </div>
+
         <form onSubmit={handleSubmit}>
-          <div className="row g-3">
-            <div className="col-md-4">
-              <label className="form-label fw-bold">Bagian</label>
-              <select className="form-select bg-light" value={bagian} required onChange={(e) => setBagian(e.target.value)}>
-                <option value="">-- Pilih Bagian --</option>
-                {BAGIAN_LIST.map((b) => <option key={b} value={b}>{b}</option>)}
-              </select>
-            </div>
-            <div className="col-md-4">
-              <label className="form-label fw-bold" style={{ color: '#059669' }}>Kategori</label>
-              <select className="form-select bg-light" value={kategori} required onChange={(e) => setKategori(e.target.value)}>
-                <option value="">-- Pilih Kategori --</option>
-                {KATEGORI_LIST.map((k) => <option key={k} value={k}>{k}</option>)}
-                {/* kategori lama di luar daftar tetap bisa tampil saat edit */}
-                {kategori && !(KATEGORI_LIST as readonly string[]).includes(kategori) && (
-                  <option value={kategori}>{kategori}</option>
-                )}
-              </select>
-            </div>
-            <div className="col-md-4">
-              <label className="form-label fw-bold" style={{ color: '#dc2626' }}>Status Verifikasi</label>
-              <select className="form-select" value={status} onChange={(e) => setStatus(e.target.value)}>
-                <option value="">-- Belum Diproses --</option>
-                <option value="ACC">ACC</option>
-                <option value="REVISI">Revisi</option>
-              </select>
+          {/* SECTION 1: Identitas Berkas (Aksen Biru) */}
+          <div className="form-section-block form-section-blue">
+            <div className="form-section-header">
+              <h3 className="form-section-title">
+                <IconFileText size={18} color="#2563eb" />
+                <span>1. Identitas Berkas &amp; Unit Kerja</span>
+              </h3>
+              <span className="form-section-badge">Wajib Diisi</span>
             </div>
 
-            <div className="col-md-12">
-              <label className="form-label fw-bold">Uraian SPJ</label>
-              <textarea className="form-control" rows={2} value={uraian} required
-                placeholder="Keterangan uraian kegiatan/SPJ..." onChange={(e) => setUraian(e.target.value)} />
-            </div>
-
-            <div className="col-md-12 my-2">
-              <label className="form-label fw-bold" style={{ color: '#4f46e5' }}>Daftar Pegawai & Rincian Nominal</label>
-              <div className="p-3 border rounded-3 bg-light">
-                <div>
-                  {rows.map((r) => (
-                    <div key={r.key} className="d-flex gap-2 mb-2 align-items-center bg-white p-2 rounded-2 border">
-                      <div className="flex-grow-1">
-                        <input type="text" className="form-control border-0" placeholder="Nama Pegawai"
-                          value={r.nama} required autoComplete="off" list="listNamaHistory"
-                          onChange={(e) => updateRow(r.key, { nama: e.target.value })} />
-                      </div>
-                      <div style={{ width: 200 }}>
-                        <input type="text" className="form-control border-0" placeholder="Nominal (Rp)"
-                          value={r.nominal} required inputMode="numeric"
-                          onChange={(e) => updateRow(r.key, { nominal: formatRibuan(e.target.value) })} />
-                      </div>
-                      <div>
-                        <button type="button" className="btn btn-outline-danger btn-sm px-3" onClick={() => removeRow(r.key)}>X</button>
-                      </div>
-                    </div>
+            <div className="row g-3">
+              <div className="col-12 col-md-4">
+                <label className="form-label-modern label-blue">
+                  Bagian / Unit Kerja <span className="text-danger">*</span>
+                </label>
+                <select
+                  className="form-select-modern input-blue"
+                  value={bagian}
+                  required
+                  onChange={(e) => setBagian(e.target.value)}
+                >
+                  <option value="">-- Pilih Bagian --</option>
+                  {BAGIAN_LIST.map((b) => (
+                    <option key={b} value={b}>
+                      {b}
+                    </option>
                   ))}
-                </div>
-                <button type="button" className="btn btn-sm mt-2 fw-bold"
-                  style={{ backgroundColor: '#e0e7ff', color: '#4338ca', border: '1px solid #c7d2fe' }} onClick={addRow}>
-                  ➕ Tambah Pegawai
-                </button>
-                <div className="mt-3 text-end fw-bold"
-                  style={{ fontSize: '1.15rem', color: '#059669', borderTop: '1px dashed #cbd5e0', paddingTop: 10 }}>
-                  Total Keseluruhan: <span style={{ color: '#1f2937' }}>Rp</span> <span>{formatRp(total)}</span>
-                </div>
-                <datalist id="listNamaHistory">
-                  {namaHistory.map((n) => <option key={n} value={n} />)}
-                </datalist>
+                </select>
               </div>
-            </div>
 
-            <div className="col-md-3">
-              <label className="form-label small fw-bold text-secondary">Tgl Masuk</label>
-              <input type="date" className="form-control" value={tglMasuk}
-                onClick={fillToday(setTglMasuk)} onChange={(e) => setTglMasuk(e.target.value)} />
-            </div>
-            <div className="col-md-3">
-              <label className="form-label small fw-bold text-secondary">Tgl Keluar</label>
-              <input type="date" className="form-control" value={tglKeluar}
-                onClick={fillToday(setTglKeluar)} onChange={(e) => setTglKeluar(e.target.value)} />
-            </div>
-            <div className="col-md-3">
-              <label className="form-label small fw-bold text-secondary">Tgl Berkas Lkp</label>
-              <input type="date" className="form-control" value={tglBerkas}
-                onClick={fillToday(setTglBerkas)} onChange={(e) => setTglBerkas(e.target.value)} />
-            </div>
-            <div className="col-md-3">
-              <label className="form-label small fw-bold text-secondary">Tgl Bayar/ SPM</label>
-              <input type="date" className="form-control" value={tglBayar}
-                onClick={fillToday(setTglBayar)} onChange={(e) => setTglBayar(e.target.value)} />
-            </div>
+              <div className="col-12 col-md-4">
+                <label className="form-label-modern label-blue">
+                  Kategori SPJ <span className="text-danger">*</span>
+                </label>
+                <select
+                  className="form-select-modern input-blue"
+                  value={kategori}
+                  required
+                  onChange={(e) => setKategori(e.target.value)}
+                >
+                  <option value="">-- Pilih Kategori --</option>
+                  {KATEGORI_LIST.map((k) => (
+                    <option key={k} value={k}>
+                      {k}
+                    </option>
+                  ))}
+                  {kategori && !(KATEGORI_LIST as readonly string[]).includes(kategori) && (
+                    <option value={kategori}>{kategori}</option>
+                  )}
+                </select>
+              </div>
 
-            <div className="col-md-12">
-              <label className="form-label fw-bold text-secondary">Catatan Tambahan</label>
-              <textarea className="form-control" rows={2} value={ket}
-                placeholder="Catatan tambahan..." onChange={(e) => setKet(e.target.value)} />
+              <div className="col-12 col-md-4">
+                <label className="form-label-modern label-blue">
+                  Status Verifikasi
+                </label>
+                <select
+                  className="form-select-modern input-blue"
+                  value={status}
+                  onChange={(e) => setStatus(e.target.value)}
+                >
+                  <option value="">-- Belum Diproses (Proses) --</option>
+                  <option value="ACC">Disetujui (ACC)</option>
+                  <option value="REVISI">Perlu Revisi (Revisi)</option>
+                </select>
+              </div>
             </div>
           </div>
 
-          <div className="mt-4 d-flex gap-2">
-            <button type="submit" className="btn fw-bold py-2 flex-grow-1"
-              style={{ backgroundColor: '#4f46e5', color: 'white', borderRadius: 8 }}>
-              {editing ? 'UPDATE DATA' : 'SIMPAN DATA SPJ'}
+          {/* SECTION 2: Uraian Kegiatan (Aksen Ungu / Violet) */}
+          <div className="form-section-block form-section-violet">
+            <div className="form-section-header">
+              <h3 className="form-section-title">
+                <IconFileText size={18} color="#7c3aed" />
+                <span>2. Uraian Kegiatan / SPJ</span>
+              </h3>
+              <span className="form-section-badge">Deskripsi Kegiatan</span>
+            </div>
+
+            <div>
+              <label className="form-label-modern label-violet">
+                Keterangan Uraian Lengkap <span className="text-danger">*</span>
+              </label>
+              <textarea
+                className="form-textarea-modern input-violet"
+                rows={3}
+                value={uraian}
+                required
+                placeholder="Tuliskan uraian kegiatan, keperluan belanja barang/jasa, atau maksud perjalanan dinas..."
+                onChange={(e) => setUraian(e.target.value)}
+              />
+            </div>
+          </div>
+
+          {/* SECTION 3: Pegawai & Nominal (Aksen Hijau Zamrud) */}
+          <div className="form-section-block form-section-emerald">
+            <div className="form-section-header">
+              <h3 className="form-section-title">
+                <IconCheckCircle size={18} color="#059669" />
+                <span>3. Daftar Pegawai &amp; Rincian Nominal Biaya</span>
+              </h3>
+              <span className="form-section-badge">Rincian Anggaran</span>
+            </div>
+
+            <div className="pegawai-box-modern">
+              {rows.map((r) => (
+                <div key={r.key} className="pegawai-row-modern">
+                  <div className="pegawai-field-grow">
+                    <label className="d-md-none form-label-sub">Nama Pegawai / Rekanan:</label>
+                    <input
+                      type="text"
+                      className="form-control border-0 bg-transparent px-2 shadow-none"
+                      placeholder="Nama Pegawai / Rekanan Penerima"
+                      value={r.nama}
+                      required
+                      autoComplete="off"
+                      list="listNamaHistory"
+                      style={{ fontSize: '0.88rem', fontWeight: 600 }}
+                      onChange={(e) => updateRow(r.key, { nama: e.target.value })}
+                    />
+                  </div>
+                  <div className="pegawai-field-nominal">
+                    <label className="d-md-none form-label-sub">Nominal (Rp):</label>
+                    <div className="input-group input-group-sm">
+                      <span className="input-group-text bg-white border-0 text-muted fw-bold">
+                        Rp
+                      </span>
+                      <input
+                        type="text"
+                        className="form-control border-0 bg-transparent px-1 shadow-none fw-bold"
+                        placeholder="0"
+                        value={r.nominal}
+                        required
+                        inputMode="numeric"
+                        style={{ fontSize: '0.88rem', color: '#047857' }}
+                        onChange={(e) =>
+                          updateRow(r.key, { nominal: formatRibuan(e.target.value) })
+                        }
+                      />
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    className="btn-remove-row"
+                    title="Hapus baris pegawai ini"
+                    onClick={() => removeRow(r.key)}
+                  >
+                    <IconTrash size={14} color="#dc2626" />
+                  </button>
+                </div>
+              ))}
+
+              <div className="d-flex justify-content-between align-items-center mt-3">
+                <button type="button" className="btn-add-pegawai" onClick={addRow}>
+                  <IconPlus size={14} />
+                  <span>Tambah Pegawai / Baris</span>
+                </button>
+              </div>
+
+              <div className="total-display-bar">
+                <span className="total-display-label">Total Nominal Keseluruhan:</span>
+                <span className="total-display-val">Rp {formatRp(total)}</span>
+              </div>
+
+              <datalist id="listNamaHistory">
+                {namaHistory.map((n) => (
+                  <option key={n} value={n} />
+                ))}
+              </datalist>
+            </div>
+          </div>
+
+          {/* SECTION 4: Alur Tanggal Berkas (Aksen Kuning Emas / Amber) */}
+          <div className="form-section-block form-section-amber">
+            <div className="form-section-header">
+              <h3 className="form-section-title">
+                <IconCalendar size={18} color="#d97706" />
+                <span>4. Alur Tanggal Verifikasi Berkas SPJ</span>
+              </h3>
+              <span className="form-section-badge">Klik kolom untuk tanggal hari ini</span>
+            </div>
+
+            <div className="row g-3">
+              <div className="col-12 col-sm-6 col-md-3">
+                <label className="form-label-modern label-amber">Tgl Masuk Berkas</label>
+                <input
+                  type="date"
+                  className="form-input-modern input-amber"
+                  value={tglMasuk}
+                  onClick={fillToday(setTglMasuk)}
+                  onChange={(e) => setTglMasuk(e.target.value)}
+                />
+              </div>
+
+              <div className="col-12 col-sm-6 col-md-3">
+                <label className="form-label-modern label-amber">Tgl Perbaikan / Keluar</label>
+                <input
+                  type="date"
+                  className="form-input-modern input-amber"
+                  value={tglKeluar}
+                  onClick={fillToday(setTglKeluar)}
+                  onChange={(e) => setTglKeluar(e.target.value)}
+                />
+              </div>
+
+              <div className="col-12 col-sm-6 col-md-3">
+                <label className="form-label-modern label-amber">Tgl Berkas Lengkap</label>
+                <input
+                  type="date"
+                  className="form-input-modern input-amber"
+                  value={tglBerkas}
+                  onClick={fillToday(setTglBerkas)}
+                  onChange={(e) => setTglBerkas(e.target.value)}
+                />
+              </div>
+
+              <div className="col-12 col-sm-6 col-md-3">
+                <label className="form-label-modern label-amber">Tgl Bayar / SPM</label>
+                <input
+                  type="date"
+                  className="form-input-modern input-amber"
+                  value={tglBayar}
+                  onClick={fillToday(setTglBayar)}
+                  onChange={(e) => setTglBayar(e.target.value)}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* SECTION 5: Catatan Verifikator (Aksen Merah Mawar / Rose) */}
+          <div className="form-section-block form-section-rose">
+            <div className="form-section-header">
+              <h3 className="form-section-title">
+                <IconFileText size={18} color="#e11d48" />
+                <span>5. Catatan Verifikator &amp; Keterangan Tambahan</span>
+              </h3>
+              <span className="form-section-badge">Mendukung Multiline / Baris Baru</span>
+            </div>
+
+            <div>
+              <label className="form-label-modern label-rose">
+                Catatan Berkas (Tekan Enter untuk baris baru)
+              </label>
+              <textarea
+                className="form-textarea-modern input-rose"
+                rows={3}
+                value={ket}
+                placeholder="Contoh:&#10;- Kuitansi nomor 12 belum dilampirkan&#10;- Perlu paraf kasubag&#10;- Berkas siap diajukan SPM"
+                onChange={(e) => setKet(e.target.value)}
+              />
+            </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="form-actions-wrap">
+            <button type="submit" className="btn-dark-pill btn-submit-form">
+              <IconCheckCircle size={18} color="#ffffff" />
+              <span>{editing ? 'Update Data SPJ' : 'Simpan Data SPJ Baru'}</span>
             </button>
-            <button type="button" className="btn btn-light border py-2 px-4 fw-bold text-secondary"
-              style={{ borderRadius: 8 }} onClick={onCancel}>
-              BATAL
+            <button type="button" className="btn-cancel-form" onClick={onCancel}>
+              Batal
             </button>
           </div>
         </form>
