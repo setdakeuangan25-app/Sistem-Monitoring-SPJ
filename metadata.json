@@ -1,0 +1,6 @@
+{
+  "name": "Sistem Monitoring SPJ - Setda Kobar",
+  "description": "Aplikasi Sistem Monitoring Surat Pertanggungjawaban (SPJ) Bagian Umum dan Keuangan Sekretariat Daerah Kotawaringin Barat.",
+  "permissions": [],
+  "capabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
