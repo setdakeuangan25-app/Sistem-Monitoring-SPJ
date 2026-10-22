@@ -173,7 +173,7 @@ export default function Dashboard({
             >
               <div className="bagian-card-top-full">
                 <div className="d-flex align-items-center gap-2">
-                  <IconFileText size={18} color="#ffffff" />
+                  <IconFileText size={18} color="currentColor" />
                   <span className="bagian-name-full">{b}</span>
                 </div>
                 <span className="bagian-count-badge-full">{totalCount} Berkas</span>
@@ -193,7 +193,7 @@ export default function Dashboard({
               <div className="bagian-footer-full">
                 <span>Buka Register SPJ {b}</span>
                 <span className="footer-arrow">
-                  <IconChevronRight size={14} color="#ffffff" />
+                  <IconChevronRight size={14} color="currentColor" />
                 </span>
               </div>
             </div>

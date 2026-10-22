@@ -28,10 +28,10 @@ export default function Header({
             type="button"
             className={`btn-toggle-sidebar ${!sidebarOpen ? 'is-collapsed' : ''}`}
             onClick={onToggleSidebar}
-            title={sidebarOpen ? 'Sembunyikan menu' : 'Tampilkan menu'}
+            title={sidebarOpen ? 'Aktifkan Auto Hide menu (sisakan icon)' : 'Tampilkan menu secara tetap'}
           >
             {sidebarOpen ? <IconSidebar size={18} /> : <IconMenu size={18} />}
-            <span className="btn-toggle-label">{sidebarOpen ? 'Ciutkan Menu' : 'Menu'}</span>
+            <span className="btn-toggle-label">{sidebarOpen ? 'Auto Hide' : 'Menu Tetap'}</span>
           </button>
         )}
 

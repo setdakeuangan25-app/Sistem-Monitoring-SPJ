@@ -19,6 +19,7 @@ import {
   IconTrash,
   IconFileText,
   IconCalendar,
+  IconClose,
 } from './Icons';
 
 interface Props {
@@ -173,7 +174,9 @@ export default function Register({
                 <button
                   key={b}
                   type="button"
-                  className={`pill-filter-btn ${filters.bagian === b ? 'active' : ''}`}
+                  className={`pill-filter-btn pill-bagian pill-${b.toLowerCase()} ${
+                    filters.bagian === b ? 'active' : ''
+                  }`}
                   onClick={() => patch({ bagian: b })}
                 >
                   {b} ({count})
@@ -298,6 +301,17 @@ export default function Register({
               value={filters.search}
               onChange={(e) => patch({ search: e.target.value })}
             />
+            {filters.search && (
+              <button
+                type="button"
+                className="btn-search-reset"
+                onClick={() => patch({ search: '' })}
+                title="Reset pencarian"
+                aria-label="Reset pencarian"
+              >
+                <IconClose size={14} />
+              </button>
+            )}
           </div>
 
           <div className="export-actions">
