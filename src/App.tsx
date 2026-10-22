@@ -38,15 +38,15 @@ function Shell({ session }: { session: Session }) {
   const [formKey, setFormKey] = useState(0);
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
 
-  // Desktop sidebar collapse state
-  const [sidebarOpen, setSidebarOpen] = useState(() => {
+  // Desktop sidebar mode: 'pinned' = selalu tampil, 'auto' = auto hide (sisa icon, melebar saat hover)
+  const [sidebarMode, setSidebarMode] = useState<'pinned' | 'auto'>(() => {
     try {
-      const saved = localStorage.getItem('spj_sidebar_open');
-      return saved !== null ? saved === 'true' : true;
+      return localStorage.getItem('spj_sidebar_mode') === 'auto' ? 'auto' : 'pinned';
     } catch {
-      return true;
+      return 'pinned';
     }
   });
+  const sidebarOpen = sidebarMode === 'pinned';
 
   // Mobile drawer slide-in state
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -55,10 +55,10 @@ function Shell({ session }: { session: Session }) {
     if (typeof window !== 'undefined' && window.innerWidth <= 900) {
       setMobileMenuOpen((prev) => !prev);
     } else {
-      setSidebarOpen((prev) => {
-        const next = !prev;
+      setSidebarMode((prev) => {
+        const next = prev === 'pinned' ? 'auto' : 'pinned';
         try {
-          localStorage.setItem('spj_sidebar_open', String(next));
+          localStorage.setItem('spj_sidebar_mode', next);
         } catch {}
         return next;
       });
@@ -219,7 +219,7 @@ function Shell({ session }: { session: Session }) {
         {/* Sidebar (Desktop Collapsible & Mobile Slide-in Drawer) */}
         <aside
           className={`app-sidebar ${
-            !sidebarOpen ? 'sidebar-hidden' : ''
+            !sidebarOpen ? 'sidebar-auto' : ''
           } ${mobileMenuOpen ? 'mobile-drawer-open' : ''}`}
         >
           <div>
@@ -228,7 +228,7 @@ function Shell({ session }: { session: Session }) {
                 <div className="brand-icon-box">
                   <IconFileText size={22} color="#ffffff" />
                 </div>
-                <div>
+                <div className="brand-text">
                   <h1 className="brand-title">SPJ Monitoring</h1>
                   <div className="brand-subtitle">Setda Kab. Kobar</div>
                 </div>
@@ -239,7 +239,7 @@ function Shell({ session }: { session: Session }) {
                 type="button"
                 className="btn-hide-sidebar"
                 onClick={toggleSidebar}
-                title={mobileMenuOpen ? 'Tutup menu' : 'Sembunyikan menu samping'}
+                title={mobileMenuOpen ? 'Tutup menu' : 'Mode Auto Hide (sisakan icon)'}
               >
                 {mobileMenuOpen ? <IconClose size={16} /> : <IconChevronLeft size={16} />}
               </button>
@@ -254,7 +254,7 @@ function Shell({ session }: { session: Session }) {
                 <span className="nav-pill-icon">
                   <IconDashboard size={19} />
                 </span>
-                <span>Dashboard</span>
+                <span className="nav-label">Dashboard</span>
               </button>
 
               <button
@@ -265,7 +265,7 @@ function Shell({ session }: { session: Session }) {
                 <span className="nav-pill-icon">
                   <IconRegister size={19} />
                 </span>
-                <span>Register SPJ</span>
+                <span className="nav-label">Register SPJ</span>
               </button>
 
               <button
@@ -276,7 +276,7 @@ function Shell({ session }: { session: Session }) {
                 <span className="nav-pill-icon">
                   <IconAdd size={19} />
                 </span>
-                <span>Input SPJ Baru</span>
+                <span className="nav-label">Input SPJ Baru</span>
               </button>
             </nav>
           </div>
@@ -303,14 +303,14 @@ function Shell({ session }: { session: Session }) {
                 title="Keluar dari akun verifikator"
               >
                 <IconLogout size={14} />
-                <span>Keluar dari Akun</span>
+                <span className="nav-label">Keluar dari Akun</span>
               </button>
             </div>
           </div>
         </aside>
 
         {/* Main Floating Canvas Panel */}
-        <main className={`app-main ${!sidebarOpen ? 'main-expanded' : ''}`}>
+        <main className={`app-main ${!sidebarOpen ? 'main-rail' : ''}`}>
           <Header
             title={headerMeta.title}
             subtitle={headerMeta.subtitle}
@@ -365,7 +365,7 @@ function Shell({ session }: { session: Session }) {
               onClick={() => goTab('home')}
             >
               <IconDashboard size={20} />
-              <span>Dashboard</span>
+              <span className="nav-label">Dashboard</span>
             </button>
 
             <button

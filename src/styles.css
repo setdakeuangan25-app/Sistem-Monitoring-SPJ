@@ -600,43 +600,16 @@ body {
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
 }
 
-/* Distinct Vibrant Full Color Palettes per Bagian */
-.full-bg-umum {
-  background: linear-gradient(135deg, #1d4ed8 0%, #2563eb 50%, #3b82f6 100%);
-  color: #ffffff;
-}
-.full-bg-pembangunan {
-  background: linear-gradient(135deg, #b45309 0%, #d97706 50%, #f59e0b 100%);
-  color: #ffffff;
-}
-.full-bg-kesra {
-  background: linear-gradient(135deg, #047857 0%, #059669 50%, #10b981 100%);
-  color: #ffffff;
-}
-.full-bg-ekonomi {
-  background: linear-gradient(135deg, #0369a1 0%, #0284c7 50%, #0ea5e9 100%);
-  color: #ffffff;
-}
-.full-bg-hukum {
-  background: linear-gradient(135deg, #b91c1c 0%, #dc2626 50%, #ef4444 100%);
-  color: #ffffff;
-}
-.full-bg-pbj {
-  background: linear-gradient(135deg, #6d28d9 0%, #7c3aed 50%, #8b5cf6 100%);
-  color: #ffffff;
-}
-.full-bg-organisasi {
-  background: linear-gradient(135deg, #a21caf 0%, #c026d3 50%, #d946ef 100%);
-  color: #ffffff;
-}
-.full-bg-pemerintahan {
-  background: linear-gradient(135deg, #0f766e 0%, #0d9488 50%, #14b8a6 100%);
-  color: #ffffff;
-}
-.full-bg-prokom {
-  background: linear-gradient(135deg, #334155 0%, #475569 50%, #64748b 100%);
-  color: #ffffff;
-}
+/* Warna khas tiap Bagian (dipakai untuk border kartu, pill register, dll) */
+.full-bg-umum { --bc: #2563eb; --bc-soft: #eff6ff; }
+.full-bg-pembangunan { --bc: #d97706; --bc-soft: #fffbeb; }
+.full-bg-kesra { --bc: #059669; --bc-soft: #ecfdf5; }
+.full-bg-ekonomi { --bc: #0284c7; --bc-soft: #f0f9ff; }
+.full-bg-hukum { --bc: #dc2626; --bc-soft: #fef2f2; }
+.full-bg-pbj { --bc: #7c3aed; --bc-soft: #f5f3ff; }
+.full-bg-organisasi { --bc: #c026d3; --bc-soft: #fdf4ff; }
+.full-bg-pemerintahan { --bc: #0d9488; --bc-soft: #f0fdfa; }
+.full-bg-prokom { --bc: #475569; --bc-soft: #f8fafc; }
 
 .bagian-card-top-full {
   display: flex;
@@ -694,6 +667,45 @@ body {
   font-size: 0.78rem;
   font-weight: 700;
   color: #ffffff;
+}
+
+/* Kartu Bagian: hanya warna pinggiran, isi putih */
+.bagian-card-full {
+  background: #ffffff;
+  color: var(--text-primary);
+  border: 1px solid var(--border-subtle);
+  border-left: 6px solid var(--bc);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04);
+}
+.bagian-card-full:hover {
+  border-color: var(--bc);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
+}
+.bagian-card-full .bagian-name-full {
+  color: var(--bc);
+}
+.bagian-card-full .bagian-card-top-full {
+  color: var(--bc);
+}
+.bagian-card-full .bagian-count-badge-full {
+  background-color: var(--bc-soft);
+  color: var(--bc);
+  border: 1px solid var(--bc);
+  backdrop-filter: none;
+}
+.bagian-card-full .bagian-breakdown-full {
+  background-color: var(--bc-soft);
+  border: 1px solid var(--border-subtle);
+  backdrop-filter: none;
+}
+.bagian-card-full .breakdown-row-full span:first-child {
+  color: var(--text-secondary);
+}
+.bagian-card-full .breakdown-val {
+  color: var(--text-primary);
+}
+.bagian-card-full .bagian-footer-full {
+  color: var(--bc);
 }
 
 /* ========================================================
@@ -1674,4 +1686,113 @@ body {
 }
 .pane-hidden {
   display: none !important;
+}
+
+/* ========================================================
+   REGISTER: pill Bagian berwarna (sama dengan dashboard)
+   ======================================================== */
+.pill-bagian {
+  --pc: #475569;
+  --pc-soft: #f8fafc;
+  background: var(--pc-soft);
+  color: var(--pc);
+  border-color: var(--pc);
+  font-weight: 700;
+}
+.pill-bagian:hover {
+  background: var(--pc);
+  color: #ffffff;
+  border-color: var(--pc);
+}
+.pill-bagian.active {
+  background: var(--pc);
+  color: #ffffff;
+  border-color: var(--pc);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.14);
+}
+.pill-umum { --pc: #2563eb; --pc-soft: #eff6ff; }
+.pill-pembangunan { --pc: #d97706; --pc-soft: #fffbeb; }
+.pill-kesra { --pc: #059669; --pc-soft: #ecfdf5; }
+.pill-ekonomi { --pc: #0284c7; --pc-soft: #f0f9ff; }
+.pill-hukum { --pc: #dc2626; --pc-soft: #fef2f2; }
+.pill-pbj { --pc: #7c3aed; --pc-soft: #f5f3ff; }
+.pill-organisasi { --pc: #c026d3; --pc-soft: #fdf4ff; }
+.pill-pemerintahan { --pc: #0d9488; --pc-soft: #f0fdfa; }
+.pill-prokom { --pc: #475569; --pc-soft: #f1f5f9; }
+
+/* Tombol reset kolom search */
+.modern-search-input {
+  padding-right: 40px;
+}
+.btn-search-reset {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: none;
+  background: #e2e8f0;
+  color: #475569;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  transition: all 0.15s ease;
+}
+.btn-search-reset svg path {
+  fill: currentColor;
+}
+.btn-search-reset:hover {
+  background: #ef4444;
+  color: #ffffff;
+}
+
+/* ========================================================
+   SIDEBAR AUTO HIDE (desktop): sisakan icon, melebar saat hover
+   ======================================================== */
+@media (min-width: 901px) {
+  .app-sidebar.sidebar-auto {
+    position: absolute;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    z-index: 60;
+    width: 84px;
+    padding: 24px 14px;
+    background-color: var(--canvas-bg);
+  }
+  .app-sidebar.sidebar-auto:hover {
+    width: 270px;
+    padding: 24px 20px 24px 24px;
+    box-shadow: 8px 0 28px rgba(0, 0, 0, 0.12);
+  }
+  .app-main.main-rail {
+    margin-left: 84px;
+  }
+
+  /* Mode icon saja (tidak di-hover) */
+  .app-sidebar.sidebar-auto:not(:hover) .brand-text,
+  .app-sidebar.sidebar-auto:not(:hover) .nav-label,
+  .app-sidebar.sidebar-auto:not(:hover) .user-details,
+  .app-sidebar.sidebar-auto:not(:hover) .btn-hide-sidebar {
+    display: none;
+  }
+  .app-sidebar.sidebar-auto:not(:hover) .brand-section {
+    padding: 4px 0 24px 0;
+    justify-content: center !important;
+  }
+  .app-sidebar.sidebar-auto:not(:hover) .nav-pill-btn {
+    justify-content: center;
+    padding: 12px 0;
+  }
+  .app-sidebar.sidebar-auto:not(:hover) .user-card {
+    padding: 8px;
+    align-items: center;
+  }
+  .app-sidebar.sidebar-auto:not(:hover) .btn-logout-minimal {
+    padding: 7px 0;
+  }
 }
