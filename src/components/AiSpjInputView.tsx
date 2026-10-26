@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { BAGIAN_LIST, KATEGORI_LIST, type SpjInput, type Status } from '../types';
 import { formatRibuan, formatRp, onlyDigits, titleCase, todayLocal } from '../utils/format';
 import { showToast } from '../lib/alert';
+import { completeSpj } from '../utils/fallbackExtract';
 import {
   IconSparkles,
   IconMic,
@@ -72,6 +73,7 @@ export default function AiSpjInputView({
   const audioChunksRef = useRef<Blob[]>([]);
   const timerIntervalRef = useRef<any>(null);
   const speechRecognitionRef = useRef<any>(null);
+  const isRecordingRef = useRef(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const audioFileInputRef = useRef<HTMLInputElement>(null);
@@ -209,7 +211,12 @@ export default function AiSpjInputView({
         };
 
         recognition.onend = () => {
-          // Keep active state synchronized
+          // Chrome menghentikan pengenalan saat hening; sambung lagi selama masih merekam
+          if (isRecordingRef.current) {
+            try {
+              recognition.start();
+            } catch {}
+          }
         };
 
         recognition.start();
@@ -283,6 +290,7 @@ export default function AiSpjInputView({
       return;
     }
 
+    isRecordingRef.current = true;
     setIsRecording(true);
     setRecordSeconds(0);
     timerIntervalRef.current = setInterval(() => {
@@ -291,6 +299,7 @@ export default function AiSpjInputView({
   };
 
   const stopRecording = () => {
+    isRecordingRef.current = false;
     if (speechRecognitionRef.current) {
       try {
         speechRecognitionRef.current.stop();
@@ -374,22 +383,22 @@ export default function AiSpjInputView({
   };
 
   // Submit to Gemini API
+  // Selalu menghasilkan draf: jika suara kosong, pakai masukan lain; jika AI gagal, pakai fallback lokal.
   const handleAnalyze = async () => {
-    const hasPhoto = !!imageFile;
-    const hasVoice = !!audioBlob || !!speechTranscript.trim();
-    const hasText = !!inputText.trim();
-
-    if (!hasPhoto && !hasVoice && !hasText) {
-      setAnalysisError(
-        'Mohon sertakan setidaknya satu masukan: Upload kuitansi (PDF/Foto), dikte suara, atau ketik rincian berkas.',
-      );
-      return;
-    }
-
+    const today = todayLocal();
     setIsAnalyzing(true);
     setAnalysisError(null);
     setAnalysisStep('Menghubungkan ke Gemini AI...');
 
+    const voiceText = speechTranscript.trim();
+    const textParts = [
+      inputText.trim(),
+      voiceText && !inputText.includes(voiceText) ? `Transkrip Dikte Suara:\n${voiceText}` : '',
+      additionalPrompt.trim() ? `Catatan Pengguna: ${additionalPrompt.trim()}` : '',
+    ].filter(Boolean);
+    const fullText = textParts.join('\n\n');
+
+    let raw: any;
     try {
       let imageBase64: string | undefined;
       let imageMimeType: string | undefined;
@@ -404,97 +413,88 @@ export default function AiSpjInputView({
           (imageFile.name.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg');
       }
 
-      if (audioBlob) {
+      // Audio hanya dikirim jika ada isinya dan transkrip belum tersedia
+      if (audioBlob && audioBlob.size > 800 && !voiceText) {
         setAnalysisStep('Mengonversi data suara audio...');
         audioBase64 = await fileToBase64(audioBlob);
         audioMimeType = audioBlob.type || 'audio/webm';
       }
 
-      setAnalysisStep('Gemini AI sedang membaca isi kuitansi & mengekstrak data...');
-
-      // Combine text notes and transcribed voice speech
-      const textParts = [
-        inputText.trim(),
-        speechTranscript && !inputText.includes(speechTranscript)
-          ? `Transkrip Dikte Suara:\n${speechTranscript.trim()}`
-          : '',
-        additionalPrompt.trim() ? `Catatan Pengguna: ${additionalPrompt.trim()}` : '',
-      ].filter(Boolean);
-
-      const fullText = textParts.join('\n\n');
-
-      const response = await fetch('/api/gemini/extract-spj', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          text: fullText,
-          imageBase64,
-          imageMimeType,
-          audioBase64,
-          audioMimeType,
-        }),
-      });
-
-      const result = await response.json();
-
-      if (!response.ok || !result.success) {
-        throw new Error(result.error || 'Gagal mengekstrak data dari masukan.');
-      }
-
-      const raw = result.data;
-      setAnalysisStep('Menyusun draf formulir SPJ...');
-
-      // Enforce user rules:
-      // - Bagian: kosong jika tidak tertera jelas
-      // - Kategori: kosong jika tidak tertera jelas
-      // - Status: default REVISI
-      // - Catatan: default kosong
-      // - Tanggal: default hari ini
-      const bagianVal =
-        raw.bagian && BAGIAN_LIST.includes(raw.bagian as any) ? raw.bagian : '';
-      const kategoriVal =
-        raw.kategori && KATEGORI_LIST.includes(raw.kategori as any) ? raw.kategori : '';
-      const statusVal = raw.status || 'REVISI';
-      const ketVal = raw.ket || '';
-      const tglMasukVal = raw.tglMasuk || todayLocal();
-
-      setDraftBagian(bagianVal);
-      setDraftKategori(kategoriVal);
-      setDraftStatus(statusVal);
-      setDraftUraian(raw.uraian || '');
-      setDraftTglMasuk(tglMasukVal);
-      setDraftKet(ketVal);
-      setConfidenceNote(
-        raw.confidenceNote ||
-          'Data kuitansi berhasil diekstrak dan disesuaikan dengan format SPJ Setda Kobar.',
-      );
-
-      // Populate pegawai / rekanan rows (e.g. CV ESARINDO MULTIGUNA LESTARI)
-      if (Array.isArray(raw.pegawai) && raw.pegawai.length > 0) {
-        setPegawaiRows(
-          raw.pegawai.map((p: any) => ({
-            key: nextKey(),
-            nama: String(p.nama || 'CV ESARINDO MULTIGUNA LESTARI'),
-            nominal: formatRibuan(String(p.nominal || 0)),
-          })),
+      if (!imageBase64 && !audioBase64 && !fullText) {
+        raw = completeSpj(
+          null,
+          '',
+          today,
+          'Tidak ada data terbaca dari masukan. Draf kosong disiapkan, silakan lengkapi secara manual.',
         );
       } else {
-        setPegawaiRows([{ key: nextKey(), nama: '', nominal: '' }]);
+        setAnalysisStep('Gemini AI sedang membaca isi kuitansi & mengekstrak data...');
+        const response = await fetch('/api/gemini/extract-spj', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            text: fullText,
+            imageBase64,
+            imageMimeType,
+            audioBase64,
+            audioMimeType,
+            today,
+          }),
+        });
+        const result = await response.json().catch(() => null);
+        if (!response.ok || !result?.success) {
+          throw new Error(result?.error || 'Gagal mengekstrak data dari masukan.');
+        }
+        raw = result.data;
       }
-
-      setHasExtracted(true);
-      showToast(
-        'Ekstraksi Sukses',
-        'Data kuitansi berhasil dianalisis AI! Silakan periksa draf di panel kanan.',
-        'success',
-      );
     } catch (err: any) {
-      console.error('Error analyzing SPJ:', err);
-      setAnalysisError(err.message || 'Terjadi kesalahan saat memproses data dengan AI.');
-    } finally {
-      setIsAnalyzing(false);
-      setAnalysisStep('');
+      console.warn('AI tidak tersedia, memakai fallback lokal:', err);
+      raw = completeSpj(
+        null,
+        fullText,
+        today,
+        `AI tidak dapat dihubungi (${err?.message || 'kesalahan jaringan'}). Draf disusun otomatis dari masukan yang ada, mohon periksa kembali.`,
+      );
     }
+
+    setAnalysisStep('Menyusun draf formulir SPJ...');
+
+    // Aturan: bagian/kategori kosong jika tidak jelas, status default REVISI, tanggal default hari ini
+    const bagianVal = raw.bagian && BAGIAN_LIST.includes(raw.bagian as any) ? raw.bagian : '';
+    const kategoriVal =
+      raw.kategori && KATEGORI_LIST.includes(raw.kategori as any) ? raw.kategori : '';
+
+    setDraftBagian(bagianVal);
+    setDraftKategori(kategoriVal);
+    setDraftStatus(raw.status || 'REVISI');
+    setDraftUraian(raw.uraian || '');
+    setDraftTglMasuk(raw.tglMasuk || today);
+    setDraftKet(raw.ket || '');
+    setConfidenceNote(
+      raw.confidenceNote ||
+        'Data kuitansi berhasil diekstrak dan disesuaikan dengan format SPJ Setda Kobar.',
+    );
+
+    if (Array.isArray(raw.pegawai) && raw.pegawai.length > 0) {
+      setPegawaiRows(
+        raw.pegawai.map((p: any) => ({
+          key: nextKey(),
+          nama: String(p.nama || ''),
+          nominal: p.nominal ? formatRibuan(String(p.nominal)) : '',
+        })),
+      );
+    } else {
+      setPegawaiRows([{ key: nextKey(), nama: '', nominal: '' }]);
+    }
+
+    setHasExtracted(true);
+    setIsAnalyzing(false);
+    setAnalysisStep('');
+    showToast(
+      'Draf Siap',
+      'Draf SPJ berhasil dibuat. Silakan periksa di panel kanan.',
+      'success',
+    );
   };
 
   // Pegawai list operations
@@ -607,7 +607,7 @@ export default function AiSpjInputView({
     <div className="modern-form-container" style={{ maxWidth: '1220px', margin: '0 auto' }}>
       {/* Hero Action Banner matching Dashboard style */}
       <div
-        className="hero-action-card mb-4"
+        className="hero-action-card ai-hero ai-reveal mb-4"
         style={{
           background: 'linear-gradient(135deg, #0f172a 0%, #1e1b4b 45%, #312e81 80%, #3730a3 100%)',
           color: '#ffffff',
@@ -616,6 +616,9 @@ export default function AiSpjInputView({
           boxShadow: '0 8px 25px rgba(15, 23, 42, 0.15)',
         }}
       >
+        <span className="ai-orb ai-orb-1" aria-hidden="true" />
+        <span className="ai-orb ai-orb-2" aria-hidden="true" />
+        <span className="ai-orb ai-orb-3" aria-hidden="true" />
         <div className="hero-text d-flex align-items-center justify-content-between flex-wrap gap-2">
           <div>
             <div className="d-flex align-items-center gap-2 mb-1">
@@ -631,13 +634,22 @@ export default function AiSpjInputView({
                   borderRadius: '9999px',
                 }}
               >
-                <IconSparkles size={12} color="#ffffff" className="me-1 inline" />
+                <span className="ai-sparkle me-1">
+                  <IconSparkles size={12} color="#ffffff" />
+                </span>
                 AI SCANNER · SETDA KOBAR
               </span>
             </div>
             <h3 className="hero-heading" style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0 }}>
               Input SPJ Otomatis dengan AI
             </h3>
+          </div>
+          <div className="ai-eq" aria-hidden="true">
+            <span />
+            <span />
+            <span />
+            <span />
+            <span />
           </div>
         </div>
       </div>
@@ -647,9 +659,9 @@ export default function AiSpjInputView({
         {/* ========================================================
             LEFT COLUMN: Input & Extraction Source (45%)
             ======================================================== */}
-        <div className="col-12 col-lg-5">
+        <div className="col-12 col-lg-5 ai-reveal" style={{ ["--d" as any]: "120ms" }}>
           <div
-            className="form-card-wrap h-100 d-flex flex-column"
+            className="form-card-wrap ai-card h-100 d-flex flex-column"
             style={{
               padding: '24px 22px',
               borderRadius: '22px',
@@ -680,17 +692,16 @@ export default function AiSpjInputView({
 
             {/* Segmented Mode Tabs */}
             <div
-              className="p-1 mb-3 rounded-2xl d-flex gap-1"
-              style={{ backgroundColor: '#f1f5f9', border: '1px solid #e2e8f0' }}
+              className="ai-tabs"
+              role="tablist"
+              style={{ ["--i" as any]: activeTab === 'photo' ? 0 : activeTab === 'voice' ? 1 : 2 }}
             >
+              <span className="ai-tab-indicator" aria-hidden="true" />
               <button
                 type="button"
-                className={`btn btn-sm flex-fill d-flex align-items-center justify-content-center gap-1.5 py-2 rounded-xl transition-all ${
-                  activeTab === 'photo'
-                    ? 'bg-white shadow-sm font-bold text-slate-900'
-                    : 'text-slate-600 hover:text-slate-900 border-0'
-                }`}
-                style={{ fontSize: '0.8rem' }}
+                role="tab"
+                aria-selected={activeTab === 'photo'}
+                className={`ai-tab ${activeTab === 'photo' ? 'is-active' : ''}`}
                 onClick={() => setActiveTab('photo')}
               >
                 <IconCamera size={15} color={activeTab === 'photo' ? '#2563eb' : 'currentColor'} />
@@ -699,12 +710,9 @@ export default function AiSpjInputView({
 
               <button
                 type="button"
-                className={`btn btn-sm flex-fill d-flex align-items-center justify-content-center gap-1.5 py-2 rounded-xl transition-all ${
-                  activeTab === 'voice'
-                    ? 'bg-white shadow-sm font-bold text-slate-900'
-                    : 'text-slate-600 hover:text-slate-900 border-0'
-                }`}
-                style={{ fontSize: '0.8rem' }}
+                role="tab"
+                aria-selected={activeTab === 'voice'}
+                className={`ai-tab ${activeTab === 'voice' ? 'is-active' : ''}`}
                 onClick={() => setActiveTab('voice')}
               >
                 <IconMic size={15} color={activeTab === 'voice' ? '#2563eb' : 'currentColor'} />
@@ -713,12 +721,9 @@ export default function AiSpjInputView({
 
               <button
                 type="button"
-                className={`btn btn-sm flex-fill d-flex align-items-center justify-content-center gap-1.5 py-2 rounded-xl transition-all ${
-                  activeTab === 'text'
-                    ? 'bg-white shadow-sm font-bold text-slate-900'
-                    : 'text-slate-600 hover:text-slate-900 border-0'
-                }`}
-                style={{ fontSize: '0.8rem' }}
+                role="tab"
+                aria-selected={activeTab === 'text'}
+                className={`ai-tab ${activeTab === 'text' ? 'is-active' : ''}`}
                 onClick={() => setActiveTab('text')}
               >
                 <IconFileText size={15} color={activeTab === 'text' ? '#7c3aed' : 'currentColor'} />
@@ -728,14 +733,13 @@ export default function AiSpjInputView({
 
             {/* TAB CONTENT: Photo & PDF */}
             {activeTab === 'photo' && (
-              <div className="flex-fill d-flex flex-column">
+              <div key="photo" className="ai-panel">
                 {!imagePreview ? (
                   <div
                     onDragOver={(e) => e.preventDefault()}
                     onDrop={handleDrop}
                     onClick={() => fileInputRef.current?.click()}
-                    className="border-2 border-dashed border-slate-300 hover:border-blue-500 rounded-2xl p-6 text-center cursor-pointer transition-all flex flex-col items-center justify-center flex-fill min-h-[220px] bg-slate-50/70 hover:bg-blue-50/50 shadow-sm"
-                    style={{ borderStyle: 'dashed' }}
+                    className="ai-dropzone"
                   >
                     <input
                       ref={fileInputRef}
@@ -744,24 +748,27 @@ export default function AiSpjInputView({
                       style={{ display: 'none' }}
                       onChange={(e) => handleImageSelect(e.target.files?.[0] || null)}
                     />
-                    <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white flex items-center justify-center mb-3 shadow-md">
+                    <div className="ai-dropzone-icon">
                       <IconUpload size={24} color="#ffffff" />
                     </div>
-                    <span className="font-extrabold text-sm text-slate-800">
+                    <span style={{ fontWeight: 800, fontSize: '0.88rem', color: '#1e293b' }}>
                       Pilih atau Seret Berkas Kuitansi (PDF/Foto)
                     </span>
                   </div>
                 ) : (
-                  <div className="relative rounded-2xl overflow-hidden border border-slate-200 bg-slate-900 flex flex-col items-center justify-center p-3 min-h-[220px]">
+                  <div className="ai-preview">
                     {isPdf ? (
                       <div className="text-center p-4 w-100 d-flex flex-column align-items-center">
-                        <div className="w-16 h-16 rounded-2xl bg-red-600 flex items-center justify-center mb-2 shadow-lg">
+                        <div
+                          className="d-flex align-items-center justify-content-center mb-2"
+                          style={{ width: 64, height: 64, borderRadius: 16, background: '#dc2626' }}
+                        >
                           <IconPdf size={32} color="#ffffff" />
                         </div>
-                        <div className="font-bold text-sm text-white max-w-[260px] truncate">
+                        <div className="fw-bold text-white text-truncate" style={{ maxWidth: 260, fontSize: '0.88rem' }}>
                           {imageFile?.name || 'Dokumen Kuitansi.pdf'}
                         </div>
-                        <div className="text-xs text-slate-400 mt-1">
+                        <div style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: 4 }}>
                           {imageFile ? (imageFile.size / 1024).toFixed(0) : '0'} KB • Dokumen PDF
                         </div>
                       </div>
@@ -769,21 +776,14 @@ export default function AiSpjInputView({
                       <img
                         src={imagePreview}
                         alt="Pratinjau Kuitansi"
-                        className="max-h-[260px] w-auto object-contain rounded-xl"
+                        style={{ maxHeight: 260, width: 'auto', maxWidth: '100%', objectFit: 'contain', borderRadius: 12 }}
                       />
                     )}
 
-                    <div className="absolute top-3 right-3 flex items-center gap-1.5">
-                      <button
-                        type="button"
-                        onClick={clearImage}
-                        className="px-2.5 py-1.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold shadow-md transition-all flex items-center gap-1"
-                        title="Hapus berkas ini"
-                      >
-                        <IconTrash size={13} color="#ffffff" />
-                        <span>Hapus</span>
-                      </button>
-                    </div>
+                    <button type="button" onClick={clearImage} className="ai-preview-del" title="Hapus berkas ini">
+                      <IconTrash size={13} color="#ffffff" />
+                      <span>Hapus</span>
+                    </button>
                   </div>
                 )}
               </div>
@@ -791,7 +791,7 @@ export default function AiSpjInputView({
 
             {/* TAB CONTENT: Voice & Dictation */}
             {activeTab === 'voice' && (
-              <div className="flex-fill d-flex flex-column align-items-center justify-content-center p-6 rounded-2xl bg-slate-50/80 border border-slate-200 min-h-[220px]">
+              <div key="voice" className="ai-panel">
                 <input
                   ref={audioFileInputRef}
                   type="file"
@@ -800,51 +800,73 @@ export default function AiSpjInputView({
                   onChange={(e) => handleAudioFileSelect(e.target.files?.[0] || null)}
                 />
 
-                <div className="text-center w-100 d-flex flex-column align-items-center justify-content-center my-auto">
-                  <button
-                    type="button"
-                    onClick={isRecording ? stopRecording : startRecording}
-                    className={`w-20 h-20 rounded-full flex items-center justify-center transition-all shadow-xl active:scale-95 ${
-                      isRecording
-                        ? 'bg-red-600 hover:bg-red-700 text-white animate-pulse ring-8 ring-red-100'
-                        : 'bg-gradient-to-tr from-blue-600 to-indigo-600 text-white hover:brightness-105 hover:shadow-2xl'
-                    }`}
-                    title={isRecording ? 'Berhenti dikte' : 'Mulai dikte suara'}
-                  >
-                    <IconMic size={34} color="#ffffff" />
-                  </button>
+                <div className="ai-voice">
+                  <div className={`ai-mic-wrap ${isRecording ? 'is-rec' : ''}`}>
+                    <span className="ai-mic-ring" />
+                    <span className="ai-mic-ring" />
+                    <span className="ai-mic-ring" />
+                    <button
+                      type="button"
+                      onClick={isRecording ? stopRecording : startRecording}
+                      className={`ai-mic ${isRecording ? 'is-rec' : ''}`}
+                      title={isRecording ? 'Berhenti dikte' : 'Mulai dikte suara'}
+                      aria-label={isRecording ? 'Berhenti dikte' : 'Mulai dikte suara'}
+                    >
+                      <IconMic size={34} color="#ffffff" />
+                    </button>
+                  </div>
 
-                  {isRecording && (
-                    <div className="mt-3 flex items-center gap-2">
-                      <span className="w-2.5 h-2.5 rounded-full bg-red-600 animate-ping" />
-                      <span className="font-mono text-sm font-bold text-red-600">
-                        {Math.floor(recordSeconds / 60)
-                          .toString()
-                          .padStart(2, '0')}
-                        :{(recordSeconds % 60).toString().padStart(2, '0')}
-                      </span>
-                    </div>
-                  )}
-
-                  {/* Live speech transcript box */}
-                  {(speechTranscript || isRecording) && (
-                    <div className="mt-3 p-3 rounded-xl bg-white border border-blue-200 text-start w-100 shadow-sm">
-                      <p className="text-xs text-slate-800 font-medium mb-0 max-h-24 overflow-y-auto">
-                        {speechTranscript || 'Mendengarkan ucapan Anda...'}
+                  {isRecording ? (
+                    <>
+                      <div className="ai-wave" aria-hidden="true">
+                        {Array.from({ length: 11 }).map((_, i) => (
+                          <span key={i} />
+                        ))}
+                      </div>
+                      <p className="ai-voice-title" style={{ color: '#dc2626', fontFamily: 'monospace' }}>
+                        {Math.floor(recordSeconds / 60).toString().padStart(2, '0')}:
+                        {(recordSeconds % 60).toString().padStart(2, '0')}
                       </p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="ai-voice-title">Klik Mikrofon untuk Mulai Dikte</p>
+                      <p className="ai-voice-sub">
+                        Sebutkan detail kuitansi, nama rekanan penyedia, nominal rupiah, dan uraian belanja.
+                      </p>
+                    </>
+                  )}
+
+                  {(speechTranscript || isRecording) && (
+                    <div className="ai-transcript">
+                      {speechTranscript || 'Mendengarkan ucapan Anda...'}
                     </div>
                   )}
 
-                  {/* Audio player if audio blob captured */}
+                  {!isRecording && recordSeconds > 0 && !speechTranscript.trim() && (
+                    <div className="ai-voice-note">
+                      Tidak ada suara yang terbaca. AI tetap akan memakai berkas, teks, atau petunjuk lain yang sudah Anda isi.
+                    </div>
+                  )}
+
                   {audioUrl && !isRecording && (
                     <div className="mt-3 w-100 d-flex flex-column align-items-center">
-                      <audio controls src={audioUrl} className="w-100 max-w-xs h-9 mb-2" />
-                      <button
-                        type="button"
-                        onClick={clearAudio}
-                        className="btn btn-sm btn-light border text-[11px] py-1 px-3 rounded-lg text-slate-600 font-medium"
-                      >
+                      <audio controls src={audioUrl} className="w-100 mb-2" style={{ maxWidth: 320, height: 36 }} />
+                      <button type="button" onClick={clearAudio} className="ai-chip" style={{ padding: '4px 12px', fontSize: '0.72rem' }}>
                         Hapus Rekaman
+                      </button>
+                    </div>
+                  )}
+
+                  {!isRecording && (
+                    <div className="ai-chip-row mt-3">
+                      <button type="button" className="ai-chip" onClick={() => loadPreset('esarindo-dikte')}>
+                        <IconSparkles size={13} color="#f59e0b" />
+                        <span>Simulasi Dikte CV ESARINDO</span>
+                      </button>
+                      <button type="button" className="ai-chip" onClick={() => audioFileInputRef.current?.click()}>
+                        <IconUpload size={13} />
+                        <span>Unggah Audio</span>
                       </button>
                     </div>
                   )}
@@ -854,7 +876,7 @@ export default function AiSpjInputView({
 
             {/* TAB CONTENT: Text */}
             {activeTab === 'text' && (
-              <div className="flex-fill d-flex flex-column">
+              <div key="text" className="ai-panel">
                 <textarea
                   className="form-textarea-modern flex-fill"
                   rows={6}
@@ -866,9 +888,24 @@ export default function AiSpjInputView({
               </div>
             )}
 
+            {/* Petunjuk tambahan untuk AI */}
+            <div className="ai-hint">
+              <label className="ai-hint-label" htmlFor="ai-hint-input">
+                Petunjuk Tambahan untuk AI (Opsional)
+              </label>
+              <input
+                id="ai-hint-input"
+                type="text"
+                className="ai-hint-input"
+                value={additionalPrompt}
+                onChange={(e) => setAdditionalPrompt(e.target.value)}
+                placeholder="Misal: Bagian Umum, nomor SP 027/SP.45, dll."
+              />
+            </div>
+
             {/* Error Banner */}
             {analysisError && (
-              <div className="mt-3 p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-medium d-flex align-items-center justify-content-between">
+              <div className="ai-banner mt-3 p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-medium d-flex align-items-center justify-content-between">
                 <span>{analysisError}</span>
                 <button
                   type="button"
@@ -886,26 +923,21 @@ export default function AiSpjInputView({
                 type="button"
                 disabled={isAnalyzing}
                 onClick={handleAnalyze}
-                className="w-100 py-3 px-4 rounded-xl text-white font-extrabold text-sm shadow-lg transition-all d-flex align-items-center justify-content-center gap-2 active:scale-98"
-                style={{
-                  background: isAnalyzing
-                    ? '#64748b'
-                    : 'linear-gradient(135deg, #2563eb 0%, #4f46e5 50%, #7c3aed 100%)',
-                  cursor: isAnalyzing ? 'not-allowed' : 'pointer',
-                  border: 'none',
-                }}
+                className={`ai-analyze d-flex align-items-center justify-content-center gap-2 ${isAnalyzing ? 'is-busy' : ''}`}
+                aria-busy={isAnalyzing}
               >
                 {isAnalyzing ? (
-                  <>
+                  <span key="busy" className="ai-analyze-label">
                     <IconSpinner size={18} color="#ffffff" />
                     <span>{analysisStep || 'Sedang Memproses dengan AI...'}</span>
-                  </>
+                  </span>
                 ) : (
-                  <>
+                  <span key="idle" className="ai-analyze-label">
                     <IconSparkles size={18} color="#ffffff" />
                     <span>Analisis &amp; Ekstrak Data SPJ</span>
-                  </>
+                  </span>
                 )}
+                {isAnalyzing && <span className="ai-progress" aria-hidden="true" />}
               </button>
             </div>
           </div>
@@ -914,9 +946,9 @@ export default function AiSpjInputView({
         {/* ========================================================
             RIGHT COLUMN: Review & Form Draft (55%)
             ======================================================== */}
-        <div className="col-12 col-lg-7">
+        <div className="col-12 col-lg-7 ai-reveal" style={{ ["--d" as any]: "220ms" }}>
           <div
-            className="form-card-wrap h-100 d-flex flex-column"
+            className="form-card-wrap ai-card h-100 d-flex flex-column"
             style={{
               padding: '24px 26px',
               borderRadius: '22px',
@@ -930,7 +962,8 @@ export default function AiSpjInputView({
                 </h4>
               </div>
               <span
-                className="badge"
+                key={hasExtracted ? 'done' : 'wait'}
+                className="badge ai-pop"
                 style={{
                   backgroundColor: hasExtracted ? '#ecfdf5' : '#f8fafc',
                   color: hasExtracted ? '#059669' : '#64748b',
@@ -947,11 +980,8 @@ export default function AiSpjInputView({
 
             {!hasExtracted ? (
               /* Empty State Placeholder - Super Clean */
-              <div className="flex-fill d-flex flex-column align-items-center justify-content-center p-4 text-center my-auto min-h-[300px]">
-                <div
-                  className="w-16 h-16 rounded-3xl d-flex align-items-center justify-content-center mb-3 shadow-sm"
-                  style={{ background: 'linear-gradient(135deg, #e0e7ff, #ede9fe)', color: '#4f46e5' }}
-                >
+              <div className="flex-fill d-flex flex-column align-items-center justify-content-center p-4 text-center my-auto" style={{ minHeight: 300 }}>
+                <div className="ai-empty-icon">
                   <IconSparkles size={32} color="#4f46e5" />
                 </div>
                 <h5 className="font-extrabold text-slate-700 mb-0" style={{ fontSize: '1rem' }}>
@@ -960,7 +990,7 @@ export default function AiSpjInputView({
               </div>
             ) : (
               /* Extracted Review & Editor Form */
-              <div className="flex-fill d-flex flex-column">
+              <div className="flex-fill d-flex flex-column ai-stagger">
                 {/* AI Summary Confidence Box */}
                 {confidenceNote && (
                   <div
@@ -1097,7 +1127,7 @@ export default function AiSpjInputView({
                     {pegawaiRows.map((row, idx) => (
                       <div
                         key={row.key}
-                        className="d-flex gap-2 align-items-center bg-white p-2 rounded-xl border border-emerald-200"
+                        className="ai-row-in d-flex gap-2 align-items-center bg-white p-2 rounded-xl border border-emerald-200"
                       >
                         <span className="text-[11px] font-bold text-emerald-800 w-5 text-center">
                           {idx + 1}.
@@ -1204,7 +1234,7 @@ export default function AiSpjInputView({
                   <button
                     type="button"
                     onClick={handleReset}
-                    className="btn btn-sm btn-light border text-slate-600 font-bold px-3 py-2 rounded-xl text-xs w-100 w-sm-auto"
+                    className="ai-btn btn btn-sm btn-light border text-slate-600 font-bold px-3 py-2 rounded-xl text-xs w-100 w-sm-auto"
                   >
                     Pindai Ulang
                   </button>
@@ -1213,7 +1243,7 @@ export default function AiSpjInputView({
                     <button
                       type="button"
                       onClick={handleOpenInFullForm}
-                      className="btn btn-sm text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 font-bold px-3 py-2 rounded-xl text-xs flex-fill d-flex align-items-center justify-content-center gap-1.5"
+                      className="ai-btn btn btn-sm text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 font-bold px-3 py-2 rounded-xl text-xs flex-fill d-flex align-items-center justify-content-center gap-1.5"
                       title="Buka form lengkap jika ingin mengisi tgl keluar, tgl berkas, tgl bayar"
                     >
                       <IconEdit size={14} />
@@ -1224,7 +1254,7 @@ export default function AiSpjInputView({
                       type="button"
                       disabled={isSaving}
                       onClick={handleDirectSave}
-                      className="btn btn-sm text-white font-extrabold px-4 py-2 rounded-xl text-xs flex-fill d-flex align-items-center justify-content-center gap-1.5 shadow-md active:scale-98"
+                      className="ai-btn btn btn-sm text-white font-extrabold px-4 py-2 rounded-xl text-xs flex-fill d-flex align-items-center justify-content-center gap-1.5 shadow-md active:scale-98"
                       style={{
                         background: 'linear-gradient(135deg, #059669 0%, #10b981 100%)',
                         border: 'none',
