@@ -76,7 +76,6 @@ export default function AiSpjInputView({
   const isRecordingRef = useRef(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const audioFileInputRef = useRef<HTMLInputElement>(null);
   const [micPermissionDenied, setMicPermissionDenied] = useState(false);
 
   // Analysis & Loading
@@ -159,17 +158,6 @@ export default function AiSpjInputView({
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  // Audio file upload handler (direct audio alternative)
-  const handleAudioFileSelect = (file: File | null) => {
-    if (!file) return;
-    setAudioBlob(file);
-    if (audioUrl) URL.revokeObjectURL(audioUrl);
-    setAudioUrl(URL.createObjectURL(file));
-    setAnalysisError(null);
-    setMicPermissionDenied(false);
-    showToast('Audio Dipilih', `Berkas suara "${file.name}" siap dianalisis.`, 'success');
-  };
-
   // Voice recording & Web Speech Recognition handlers
   const startRecording = async () => {
     setAnalysisError(null);
@@ -205,7 +193,7 @@ export default function AiSpjInputView({
           if (event.error === 'not-allowed') {
             setMicPermissionDenied(true);
             setAnalysisError(
-              'Akses mikrofon dibatasi oleh peramban. Anda dapat mengunggah berkas audio rekaman atau menggunakan simulasi dikte.',
+              'Akses mikrofon dibatasi oleh peramban. Izinkan akses mikrofon, atau gunakan tab Teks Ringkas.',
             );
           }
         };
@@ -277,7 +265,7 @@ export default function AiSpjInputView({
         if (!recognitionStarted) {
           setMicPermissionDenied(true);
           setAnalysisError(
-            'Izin mikrofon belum aktif di peramban. Anda dapat menggunakan tombol "Simulasi Dikte CV ESARINDO" atau mengunggah rekaman audio di bawah.',
+            'Izin mikrofon belum aktif di peramban. Izinkan akses mikrofon, atau gunakan tab Teks Ringkas.',
           );
           return;
         }
@@ -285,7 +273,7 @@ export default function AiSpjInputView({
     } else if (!recognitionStarted) {
       setMicPermissionDenied(true);
       setAnalysisError(
-        'Perangkat perekam audio tidak didukung di peramban ini. Anda dapat mengunggah rekaman suara atau menggunakan teks ringkas.',
+        'Perangkat perekam audio tidak didukung di peramban ini. Gunakan tab Teks Ringkas.',
       );
       return;
     }
@@ -320,7 +308,6 @@ export default function AiSpjInputView({
     setAudioUrl(null);
     setSpeechTranscript('');
     setRecordSeconds(0);
-    if (audioFileInputRef.current) audioFileInputRef.current.value = '';
   };
 
   // Helper to convert Blob / File to base64
@@ -792,14 +779,6 @@ export default function AiSpjInputView({
             {/* TAB CONTENT: Voice & Dictation */}
             {activeTab === 'voice' && (
               <div key="voice" className="ai-panel">
-                <input
-                  ref={audioFileInputRef}
-                  type="file"
-                  accept="audio/*"
-                  style={{ display: 'none' }}
-                  onChange={(e) => handleAudioFileSelect(e.target.files?.[0] || null)}
-                />
-
                 <div className="ai-voice">
                   <div className={`ai-mic-wrap ${isRecording ? 'is-rec' : ''}`}>
                     <span className="ai-mic-ring" />
@@ -858,18 +837,6 @@ export default function AiSpjInputView({
                     </div>
                   )}
 
-                  {!isRecording && (
-                    <div className="ai-chip-row mt-3">
-                      <button type="button" className="ai-chip" onClick={() => loadPreset('esarindo-dikte')}>
-                        <IconSparkles size={13} color="#f59e0b" />
-                        <span>Simulasi Dikte CV ESARINDO</span>
-                      </button>
-                      <button type="button" className="ai-chip" onClick={() => audioFileInputRef.current?.click()}>
-                        <IconUpload size={13} />
-                        <span>Unggah Audio</span>
-                      </button>
-                    </div>
-                  )}
                 </div>
               </div>
             )}
