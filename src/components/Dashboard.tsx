@@ -9,6 +9,7 @@ import {
   IconChevronRight,
   IconSparkles,
 } from './Icons';
+import CountUp from './CountUp';
 
 interface Props {
   stats: Stats;
@@ -98,7 +99,7 @@ export default function Dashboard({
             </span>
             <span className="metric-badge-full">Semua Berkas</span>
           </div>
-          <h2 className="metric-value-full">{stats.total}</h2>
+          <h2 className="metric-value-full"><CountUp value={stats.total} /></h2>
           <div className="metric-footer-full">
             <span>Seluruh berkas terdaftar</span>
             <span className="footer-arrow">
@@ -119,7 +120,7 @@ export default function Dashboard({
             </span>
             <span className="metric-badge-full">Antrean</span>
           </div>
-          <h2 className="metric-value-full">{stats.belum}</h2>
+          <h2 className="metric-value-full"><CountUp value={stats.belum} /></h2>
           <div className="metric-footer-full">
             <span>Menunggu verifikasi</span>
             <span className="footer-arrow">
@@ -140,7 +141,7 @@ export default function Dashboard({
             </span>
             <span className="metric-badge-full">Lengkap</span>
           </div>
-          <h2 className="metric-value-full">{stats.acc}</h2>
+          <h2 className="metric-value-full"><CountUp value={stats.acc} /></h2>
           <div className="metric-footer-full">
             <span>Berkas diverifikasi &amp; sah</span>
             <span className="footer-arrow">
@@ -161,7 +162,7 @@ export default function Dashboard({
             </span>
             <span className="metric-badge-full">Perbaikan</span>
           </div>
-          <h2 className="metric-value-full">{stats.revisi}</h2>
+          <h2 className="metric-value-full"><CountUp value={stats.revisi} /></h2>
           <div className="metric-footer-full">
             <span>Menunggu perbaikan berkas</span>
             <span className="footer-arrow">

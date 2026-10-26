@@ -35,7 +35,7 @@ export default function Header({
           </button>
         )}
 
-        <div className="topbar-text-group">
+        <div className="topbar-text-group topbar-text-anim" key={title}>
           <h2 className="topbar-title">{title}</h2>
           <p className="topbar-subtitle">{subtitle}</p>
         </div>

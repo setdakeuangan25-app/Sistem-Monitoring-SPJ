@@ -2289,3 +2289,193 @@ body {
   }
   .ai-tab-indicator, .ai-dropzone, .ai-chip, .ai-mic, .ai-btn, .ai-analyze { transition: none !important; }
 }
+
+/* ========================================================
+   GLOBAL MOTION — seluruh aplikasi
+   fill-mode "backwards" agar efek hover transform tidak tertimpa.
+   ======================================================== */
+@keyframes appPaneIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes appRise {
+  from { opacity: 0; transform: translateY(18px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes appSlideIn {
+  from { opacity: 0; transform: translateX(-14px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+@keyframes appRowIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes appCardIn {
+  from { opacity: 0; transform: translateY(24px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes appTitleIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Pindah halaman (pane tampil lagi => animasi ulang) */
+.panel-scrollable > div:not(.pane-hidden) {
+  animation: appPaneIn 0.45s var(--ai-ease) backwards;
+}
+.topbar-text-anim {
+  animation: appTitleIn 0.4s var(--ai-ease) backwards;
+}
+
+/* Dashboard */
+.hero-action-fullcolor {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  animation: appRise 0.6s var(--ai-ease) backwards;
+}
+.hero-action-fullcolor > * { position: relative; z-index: 1; }
+.hero-action-fullcolor::before,
+.hero-action-fullcolor::after {
+  content: '';
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(36px);
+  pointer-events: none;
+  z-index: 0;
+  will-change: transform;
+}
+.hero-action-fullcolor::before {
+  width: 220px; height: 220px; right: -50px; top: -90px;
+  background: radial-gradient(circle, rgba(99, 102, 241, 0.6), transparent 70%);
+  animation: aiFloat 10s ease-in-out infinite;
+}
+.hero-action-fullcolor::after {
+  width: 160px; height: 160px; left: 38%; bottom: -90px;
+  background: radial-gradient(circle, rgba(56, 189, 248, 0.4), transparent 70%);
+  animation: aiFloatSlow 12s ease-in-out infinite;
+}
+.metrics-grid > *,
+.bagian-modern-grid > * { animation: appRise 0.6s var(--ai-ease) backwards; }
+.metrics-grid > *:nth-child(1) { animation-delay: 100ms; }
+.metrics-grid > *:nth-child(2) { animation-delay: 170ms; }
+.metrics-grid > *:nth-child(3) { animation-delay: 240ms; }
+.metrics-grid > *:nth-child(4) { animation-delay: 310ms; }
+.bagian-modern-grid > *:nth-child(1) { animation-delay: 300ms; }
+.bagian-modern-grid > *:nth-child(2) { animation-delay: 350ms; }
+.bagian-modern-grid > *:nth-child(3) { animation-delay: 400ms; }
+.bagian-modern-grid > *:nth-child(4) { animation-delay: 450ms; }
+.bagian-modern-grid > *:nth-child(5) { animation-delay: 500ms; }
+.bagian-modern-grid > *:nth-child(6) { animation-delay: 550ms; }
+.bagian-modern-grid > *:nth-child(7) { animation-delay: 600ms; }
+.bagian-modern-grid > *:nth-child(8) { animation-delay: 650ms; }
+.bagian-modern-grid > *:nth-child(n+9) { animation-delay: 700ms; }
+.metric-card-full::after {
+  content: '';
+  position: absolute; top: 0; bottom: 0; left: 0;
+  width: 40%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.22), transparent);
+  transform: translateX(-130%) skewX(-18deg);
+  pointer-events: none;
+}
+.metric-card-full:hover::after { animation: aiShimmer 0.9s var(--ai-ease-soft); }
+.metric-card-full:active, .bagian-card-full:active { transform: scale(0.98); }
+.footer-arrow { display: inline-flex; transition: transform 0.3s var(--ai-ease); }
+.metric-card-full:hover .footer-arrow,
+.bagian-card-full:hover .footer-arrow { transform: translateX(5px); }
+
+/* Sidebar */
+.sidebar-nav .nav-pill-btn { animation: appSlideIn 0.5s var(--ai-ease) backwards; }
+.sidebar-nav .nav-pill-btn:nth-child(1) { animation-delay: 120ms; }
+.sidebar-nav .nav-pill-btn:nth-child(2) { animation-delay: 190ms; }
+.sidebar-nav .nav-pill-btn:nth-child(3) { animation-delay: 260ms; }
+.sidebar-nav .nav-pill-btn:nth-child(4) { animation-delay: 330ms; }
+.nav-pill-icon { transition: transform 0.3s var(--ai-ease); }
+.nav-pill-btn:hover .nav-pill-icon { transform: scale(1.14) rotate(-5deg); }
+.nav-pill-btn:active { transform: scale(0.97); }
+.brand-icon-box { animation: aiBob 4s ease-in-out infinite; }
+.status-dot { position: relative; }
+.status-dot::after {
+  content: '';
+  position: absolute; inset: 0;
+  border-radius: 50%;
+  background: inherit;
+  animation: aiRing 2s ease-out infinite;
+}
+.drawer-backdrop { animation: fadeIn 0.25s ease-out backwards; }
+
+/* Tombol umum */
+.btn-dark-pill:active, .btn-topbar-action:active, .btn-hero-new:active { transform: scale(0.96); }
+.btn-topbar-reload:hover svg { transform: rotate(180deg); }
+.btn-topbar-reload svg { transition: transform 0.5s var(--ai-ease); }
+
+/* Register: baris tabel & filter */
+.table-filter-card { animation: appRise 0.5s var(--ai-ease) backwards; }
+.table-sticky-container tbody tr { transition: background-color 0.2s ease; }
+.table-sticky-container tbody tr:nth-child(-n+14) { animation: appRowIn 0.45s ease-out backwards; }
+.table-sticky-container tbody tr:nth-child(1) { animation-delay: 80ms; }
+.table-sticky-container tbody tr:nth-child(2) { animation-delay: 110ms; }
+.table-sticky-container tbody tr:nth-child(3) { animation-delay: 140ms; }
+.table-sticky-container tbody tr:nth-child(4) { animation-delay: 170ms; }
+.table-sticky-container tbody tr:nth-child(5) { animation-delay: 200ms; }
+.table-sticky-container tbody tr:nth-child(6) { animation-delay: 230ms; }
+.table-sticky-container tbody tr:nth-child(7) { animation-delay: 260ms; }
+.table-sticky-container tbody tr:nth-child(8) { animation-delay: 290ms; }
+.table-sticky-container tbody tr:nth-child(9) { animation-delay: 320ms; }
+.table-sticky-container tbody tr:nth-child(10) { animation-delay: 350ms; }
+.table-sticky-container tbody tr:nth-child(n+11) { animation-delay: 380ms; }
+
+/* Form input manual (bukan halaman AI) */
+.form-card-wrap:not(.ai-card) { animation: appRise 0.55s var(--ai-ease) backwards; }
+.form-card-wrap:not(.ai-card) .form-section-block { animation: appRise 0.55s var(--ai-ease) backwards; }
+.form-card-wrap:not(.ai-card) .form-section-block:nth-of-type(1) { animation-delay: 80ms; }
+.form-card-wrap:not(.ai-card) .form-section-block:nth-of-type(2) { animation-delay: 150ms; }
+.form-card-wrap:not(.ai-card) .form-section-block:nth-of-type(3) { animation-delay: 220ms; }
+.form-card-wrap:not(.ai-card) .form-section-block:nth-of-type(n+4) { animation-delay: 290ms; }
+
+/* Login */
+.modern-login-canvas { position: relative; overflow: hidden; }
+.modern-login-canvas::before,
+.modern-login-canvas::after {
+  content: '';
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(50px);
+  pointer-events: none;
+  will-change: transform;
+}
+.modern-login-canvas::before {
+  width: 340px; height: 340px; left: -90px; top: -110px;
+  background: radial-gradient(circle, rgba(99, 102, 241, 0.3), transparent 70%);
+  animation: aiFloat 12s ease-in-out infinite;
+}
+.modern-login-canvas::after {
+  width: 300px; height: 300px; right: -80px; bottom: -100px;
+  background: radial-gradient(circle, rgba(56, 189, 248, 0.28), transparent 70%);
+  animation: aiFloatSlow 14s ease-in-out infinite;
+}
+.modern-login-card { position: relative; z-index: 1; animation: appCardIn 0.7s var(--ai-ease) backwards; }
+.login-emblem { animation: aiBob 3.6s ease-in-out infinite; }
+.modern-login-card form > * { animation: appRise 0.6s var(--ai-ease) backwards; }
+.modern-login-card form > *:nth-child(1) { animation-delay: 250ms; }
+.modern-login-card form > *:nth-child(2) { animation-delay: 320ms; }
+.modern-login-card form > *:nth-child(3) { animation-delay: 390ms; }
+.modern-login-card form > *:nth-child(4) { animation-delay: 460ms; }
+
+/* Loader global */
+.loading-screen { animation: fadeIn 0.2s ease-out backwards; }
+
+@media (prefers-reduced-motion: reduce) {
+  .panel-scrollable > div, .topbar-text-anim, .hero-action-fullcolor,
+  .metrics-grid > *, .bagian-modern-grid > *, .sidebar-nav .nav-pill-btn,
+  .drawer-backdrop, .table-filter-card, .table-sticky-container tbody tr,
+  .form-card-wrap, .form-card-wrap .form-section-block,
+  .modern-login-card, .modern-login-card form > *, .loading-screen {
+    animation: none !important;
+  }
+  .hero-action-fullcolor::before, .hero-action-fullcolor::after,
+  .modern-login-canvas::before, .modern-login-canvas::after,
+  .brand-icon-box, .status-dot::after, .login-emblem { animation: none !important; }
+  .metric-card-full:hover::after { animation: none !important; }
+  .nav-pill-icon, .footer-arrow, .btn-topbar-reload svg { transition: none !important; }
+}
