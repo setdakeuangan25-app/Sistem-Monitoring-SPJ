@@ -3,6 +3,7 @@ import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { GoogleGenAI, Type, ThinkingLevel } from '@google/genai';
+import { completeSpj } from './src/utils/fallbackExtract';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -33,12 +34,17 @@ function getGenAI() {
 // SPJ Extraction Endpoint
 app.post('/api/gemini/extract-spj', async (req: Request, res: Response) => {
   try {
-    const { text, imageBase64, imageMimeType, audioBase64, audioMimeType } = req.body;
+    const { text, imageBase64, imageMimeType, audioBase64, audioMimeType, today } = req.body;
+    const todayStr: string =
+      typeof today === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(today)
+        ? today
+        : new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Pontianak' });
 
+    // Tidak ada masukan sama sekali: tetap kembalikan draf kosong yang valid, bukan error.
     if (!text && !imageBase64 && !audioBase64) {
-      return res.status(400).json({
-        success: false,
-        error: 'Mohon sertakan teks keterangan, foto kuitansi/dokumen, atau rekaman suara.',
+      return res.json({
+        success: true,
+        data: completeSpj(null, '', todayStr, 'Tidak ada masukan terbaca. Silakan lengkapi draf secara manual.'),
       });
     }
 
@@ -73,6 +79,8 @@ Berdasarkan:
 7. tglMasuk: Gunakan tanggal kuitansi/pembayaran (format YYYY-MM-DD), atau tanggal hari ini jika tidak tertera jelas.
 
 8. confidenceNote: Ringkasan singkat (1 kalimat) tentang rekanan, nominal, dan berkas yang berhasil dibaca.
+
+9. Jika rekaman suara/dikte kosong, tidak jelas, atau tidak berisi data SPJ, JANGAN gagal: gunakan dokumen/foto dan teks lain yang tersedia. Jika hanya teks pendek yang ada, susun uraian dan pegawai sebaik mungkin dari teks itu. Selalu kembalikan JSON lengkap.
 `;
 
     // Attach document/image if present (supports PDF, JPG, PNG, WEBP)
@@ -85,15 +93,16 @@ Berdasarkan:
       });
     }
 
-    // Attach audio if present
-    if (audioBase64) {
-      parts.push({
-        inlineData: {
-          mimeType: audioMimeType || 'audio/webm',
-          data: audioBase64.replace(/^data:[^;]+;base64,/, ''),
-        },
-      });
-    }
+    // Attach audio if present (dipisah agar bisa dibuang saat percobaan ulang)
+    const audioPart = audioBase64
+      ? {
+          inlineData: {
+            mimeType: audioMimeType || 'audio/webm',
+            data: audioBase64.replace(/^data:[^;]+;base64,/, ''),
+          },
+        }
+      : null;
+    if (audioPart) parts.push(audioPart);
 
     // Attach user text context & extraction prompt
     const userContext = text ? `\nKeterangan / Input Tambahan Pengguna:\n"${text}"` : '';
@@ -102,15 +111,23 @@ Berdasarkan:
     });
 
     // Resilient model selection: gemini-3.1-flash-lite is fast & highly responsive
-    const candidateModels = ['gemini-3.1-flash-lite', 'gemini-3.8-flash'];
+    const candidateModels = ['gemini-3.1-flash-lite', 'gemini-3.8-flash', 'gemini-2.5-flash'];
     let response: any = null;
     let lastModelError: any = null;
 
-    for (const model of candidateModels) {
+    // Coba semua model dengan audio, lalu semua model tanpa audio (audio kosong/rusak tidak boleh menggagalkan hasil)
+    const attempts = [
+      ...candidateModels.map((model) => ({ model, contents: parts })),
+      ...(audioPart
+        ? candidateModels.map((model) => ({ model, contents: parts.filter((p) => p !== audioPart) }))
+        : []),
+    ];
+
+    for (const { model, contents } of attempts) {
       try {
         response = await ai.models.generateContent({
           model,
-          contents: parts,
+          contents,
           config: {
             systemInstruction:
               'Anda adalah asisten AI resmi verifikasi SPJ Pemerintah Kabupaten Kotawaringin Barat. Ekstraksi data harus presisi sesuai kuitansi, nama rekanan lengkap, uraian mencakup seluruh rincian dokumen pendukung, dan nominal rupiah akurat.',
@@ -180,17 +197,33 @@ Berdasarkan:
     }
 
     const rawText = response.text || '{}';
-    const parsedData = JSON.parse(rawText);
+    let parsedData: any = null;
+    try {
+      parsedData = JSON.parse(rawText);
+    } catch {
+      parsedData = null;
+    }
 
     return res.json({
       success: true,
-      data: parsedData,
+      data: completeSpj(parsedData, text || '', todayStr),
     });
   } catch (error: any) {
     console.error('Gemini extraction error:', error);
-    return res.status(500).json({
-      success: false,
-      error: error?.message || 'Terjadi kesalahan saat memproses data dengan AI Gemini.',
+    // AI gagal: tetap hasilkan draf dari masukan yang ada agar proses berhasil.
+    const body = req.body || {};
+    const fallbackToday =
+      typeof body.today === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(body.today)
+        ? body.today
+        : new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Pontianak' });
+    return res.json({
+      success: true,
+      data: completeSpj(
+        null,
+        typeof body.text === 'string' ? body.text : '',
+        fallbackToday,
+        `Layanan AI tidak merespons (${error?.message || 'kesalahan tidak diketahui'}). Draf disusun otomatis dari masukan yang ada, mohon periksa kembali.`,
+      ),
     });
   }
 });
