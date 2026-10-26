@@ -7,6 +7,7 @@ import {
   IconCalendar,
   IconFileText,
   IconChevronRight,
+  IconSparkles,
 } from './Icons';
 
 interface Props {
@@ -14,6 +15,7 @@ interface Props {
   statsBagian: Record<string, number>;
   statsKategori: Record<string, { dinas: number; belanja: number }>;
   onNew: () => void;
+  onAiInput?: () => void;
   goToFilter: (kw: string) => void;
   goToBagian: (bg: string) => void;
 }
@@ -35,6 +37,7 @@ export default function Dashboard({
   statsBagian,
   statsKategori,
   onNew,
+  onAiInput,
   goToFilter,
   goToBagian,
 }: Props) {
@@ -52,7 +55,28 @@ export default function Dashboard({
             Sub Bagian Keuangan · Sekretariat Daerah Kabupaten Kotawaringin Barat
           </p>
         </div>
-        <div className="hero-cta-wrap">
+        <div className="hero-cta-wrap d-flex align-items-center gap-2 flex-wrap">
+          {onAiInput && (
+            <button
+              type="button"
+              className="btn btn-sm d-inline-flex align-items-center gap-1.5"
+              style={{
+                backgroundColor: 'rgba(255, 255, 255, 0.22)',
+                color: '#ffffff',
+                border: '1px solid rgba(255, 255, 255, 0.4)',
+                borderRadius: '9999px',
+                padding: '9px 18px',
+                fontWeight: 800,
+                fontSize: '0.85rem',
+                backdropFilter: 'blur(6px)',
+              }}
+              onClick={onAiInput}
+              title="Input Berkas SPJ dengan Pindai AI Gemini"
+            >
+              <IconSparkles size={16} color="#ffffff" />
+              <span>Input SPJ AI</span>
+            </button>
+          )}
           <button type="button" className="btn-hero-new" onClick={onNew}>
             <IconPlus size={16} />
             <span>Input SPJ Baru</span>

@@ -247,3 +247,106 @@ export const IconUser: React.FC<IconProps> = ({ size = 18, className, color = 'c
     <path d="M4 20C4 16.69 7.58 14 12 14C16.42 14 20 16.69 20 20V21H4V20Z" fill={color} />
   </svg>
 );
+
+/* Modern Flat AI / Sparkles Icon */
+export const IconSparkles: React.FC<IconProps> = ({ size = 20, className, color = 'currentColor', ...props }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className={className} {...props}>
+    <path
+      d="M10 2L11.8 7.2L17 9L11.8 10.8L10 16L8.2 10.8L3 9L8.2 7.2L10 2Z"
+      fill={color}
+    />
+    <path
+      d="M18 13L18.9 15.6L21.5 16.5L18.9 17.4L18 20L17.1 17.4L14.5 16.5L17.1 15.6L18 13Z"
+      fill={color}
+      opacity="0.85"
+    />
+    <circle cx="17.5" cy="5.5" r="1.5" fill={color} opacity="0.7" />
+  </svg>
+);
+
+/* Modern Flat Microphone Icon */
+export const IconMic: React.FC<IconProps> = ({ size = 20, className, color = 'currentColor', ...props }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className={className} {...props}>
+    <rect x="9" y="3" width="6" height="11" rx="3" fill={color} />
+    <path
+      d="M5 10C5 13.87 8.13 17 12 17C15.87 17 19 13.87 19 10H17C17 12.76 14.76 15 12 15C9.24 15 7 12.76 7 10H5Z"
+      fill={color}
+    />
+    <rect x="11" y="17" width="2" height="4" rx="1" fill={color} />
+    <rect x="8" y="20" width="8" height="2" rx="1" fill={color} />
+  </svg>
+);
+
+/* Modern Flat Camera Icon */
+export const IconCamera: React.FC<IconProps> = ({ size = 20, className, color = 'currentColor', ...props }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className={className} {...props}>
+    <path
+      d="M9 3L7.17 5H4C2.9 5 2 5.9 2 7V19C2 20.1 2.9 21 4 21H20C21.1 21 22 20.1 22 19V7C22 5.9 21.1 5 20 5H16.83L15 3H9Z"
+      fill={color}
+    />
+    <circle cx="12" cy="13" r="4" fill="#ffffff" opacity="0.3" />
+    <circle cx="12" cy="13" r="2.5" fill="#ffffff" />
+  </svg>
+);
+
+/* Modern Flat Upload Icon */
+export const IconUpload: React.FC<IconProps> = ({ size = 20, className, color = 'currentColor', ...props }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className={className} {...props}>
+    <path
+      d="M19.35 10.04C18.67 6.59 15.64 4 12 4C9.11 4 6.6 5.64 5.35 8.04C2.34 8.36 0 10.91 0 14C0 17.31 2.69 20 6 20H19C21.76 20 24 17.76 24 15C24 12.36 21.95 10.22 19.35 10.04ZM14 13V17H10V13H7L12 8L17 13H14Z"
+      fill={color}
+    />
+  </svg>
+);
+
+/* Modern Flat Audio Wave / Sound Icon */
+export const IconAudioWave: React.FC<IconProps> = ({ size = 20, className, color = 'currentColor', ...props }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className={className} {...props}>
+    <rect x="4" y="9" width="2" height="6" rx="1" fill={color} />
+    <rect x="8" y="5" width="2" height="14" rx="1" fill={color} />
+    <rect x="12" y="3" width="2" height="18" rx="1" fill={color} />
+    <rect x="16" y="6" width="2" height="12" rx="1" fill={color} />
+    <rect x="20" y="10" width="2" height="4" rx="1" fill={color} />
+  </svg>
+);
+
+/* Modern Flat Spinner */
+export const IconSpinner: React.FC<IconProps> = ({ size = 20, className, color = 'currentColor', ...props }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    className={`icon-spin ${className ?? ''}`}
+    {...props}
+  >
+    <circle cx="12" cy="12" r="9" stroke={color} strokeWidth="3" opacity="0.25" />
+    <path
+      d="M12 3C7.03 3 3 7.03 3 12"
+      stroke={color}
+      strokeWidth="3"
+      strokeLinecap="round"
+    />
+  </svg>
+);
+
+/* Modern Flat Eye Preview Icon */
+export const IconEye: React.FC<IconProps> = ({ size = 20, className, color = 'currentColor', ...props }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className={className} {...props}>
+    <path
+      d="M12 4.5C7 4.5 2.73 7.61 1 12C2.73 16.39 7 19.5 12 19.5C17 19.5 21.27 16.39 23 12C21.27 7.61 17 4.5 12 4.5ZM12 17C9.24 17 7 14.76 7 12C7 9.24 9.24 7 12 7C14.76 7 17 9.24 17 12C17 14.76 14.76 17 12 17ZM12 9C10.34 9 9 10.34 9 12C9 13.66 10.34 15 12 15C13.66 15 15 13.66 15 12C15 10.34 13.66 9 12 9Z"
+      fill={color}
+    />
+  </svg>
+);
+
+/* Modern Flat Checkmark Icon */
+export const IconCheck: React.FC<IconProps> = ({ size = 20, className, color = 'currentColor', ...props }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className={className} {...props}>
+    <path
+      d="M9 16.17L4.83 12L3.41 13.41L9 19L21 7L19.59 5.59L9 16.17Z"
+      fill={color}
+    />
+  </svg>
+);
+

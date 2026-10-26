@@ -1,0 +1,6 @@
+{
+  "summary":  "Rencana implementasi fitur Asisten AI Gemini untuk membantu penginputan berkas SPJ baru melalui analisis foto kuitansi/dokumen, input teks ringkasan, dan rekaman suara (voice input) dengan alur pratinjau review draf sebelum diisi otomatis ke formulir.",
+  "updatedAt":  "2026-10-26T03:54:54.360348648Z",
+  "requestFeedback":  true,
+  "userFacing":  true
+}

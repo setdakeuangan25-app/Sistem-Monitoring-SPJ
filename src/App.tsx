@@ -13,10 +13,12 @@ import Loader from './components/Loader';
 import Login from './components/Login';
 import Register from './components/Register';
 import SpjForm from './components/SpjForm';
+import AiSpjInputView, { type ExtractedSpjData } from './components/AiSpjInputView';
 import {
   IconDashboard,
   IconRegister,
   IconAdd,
+  IconSparkles,
   IconFileText,
   IconLogout,
   IconChevronLeft,
@@ -24,7 +26,7 @@ import {
   IconClose,
 } from './components/Icons';
 
-type Tab = 'home' | 'input' | 'list';
+type Tab = 'home' | 'input' | 'list' | 'ai';
 
 function errMsg(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
@@ -179,6 +181,33 @@ function Shell({ session }: { session: Session }) {
     showToast('Berhasil', 'Kartu SPJ berhasil dicetak sebagai berkas gambar PNG!', 'success');
   };
 
+  const handleTransferFromAi = (draft: ExtractedSpjData) => {
+    setEditing({
+      id: '',
+      no: '',
+      bagian: draft.bagian,
+      kategori: draft.kategori,
+      uraian: draft.uraian,
+      status: (draft.status || null) as any,
+      nominal: draft.pegawai.reduce((a, b) => a + (Number(b.nominal) || 0), 0),
+      tglMasuk: draft.tglMasuk || '',
+      tglKeluar: '',
+      tglBerkas: '',
+      tglBayar: '',
+      ket: draft.ket || '',
+      pegawai: draft.pegawai,
+      nama: draft.pegawai.map((p) => p.nama).join('\n'),
+      nomList: draft.pegawai.map((p) => String(p.nominal)).join('\n'),
+    });
+    setFormKey((k) => k + 1);
+    setTab('input');
+    showToast(
+      'Draf AI Dimuat',
+      'Data hasil analisis AI telah dimasukkan ke formulir lengkap. Lengkapi tanggal alur jika diperlukan.',
+      'info',
+    );
+  };
+
   // Header titles
   const headerMeta = useMemo(() => {
     if (tab === 'home') {
@@ -191,6 +220,12 @@ function Shell({ session }: { session: Session }) {
       return {
         title: 'Register Surat Pertanggungjawaban',
         subtitle: 'Urutan otomatis dari tanggal terbaru · Kolom dapat digeser & disesuaikan',
+      };
+    }
+    if (tab === 'ai') {
+      return {
+        title: 'Input SPJ Cerdas AI',
+        subtitle: 'Ekstraksi otomatis foto kuitansi, suara dikte & ringkasan berkas dengan Gemini AI',
       };
     }
     return {
@@ -278,6 +313,24 @@ function Shell({ session }: { session: Session }) {
                 </span>
                 <span className="nav-label">Input SPJ Baru</span>
               </button>
+
+              <button
+                type="button"
+                className={`nav-pill-btn ${tab === 'ai' ? 'active' : ''}`}
+                onClick={() => goTab('ai')}
+                title="Input SPJ Cerdas dengan Gemini AI"
+              >
+                <span
+                  className="nav-pill-icon"
+                  style={{ color: tab === 'ai' ? '#ffffff' : '#6366f1' }}
+                >
+                  <IconSparkles size={19} />
+                </span>
+                <span className="nav-label d-flex align-items-center justify-content-between flex-grow-1">
+                  <span>Input SPJ AI</span>
+                  <span className="nav-badge-ai">Cerdas</span>
+                </span>
+              </button>
             </nav>
           </div>
 
@@ -328,6 +381,7 @@ function Shell({ session }: { session: Session }) {
                 statsBagian={statsBagian}
                 statsKategori={statsKategori}
                 onNew={showNewForm}
+                onAiInput={() => setTab('ai')}
                 goToFilter={goToFilter}
                 goToBagian={goToBagian}
               />
@@ -340,6 +394,15 @@ function Shell({ session }: { session: Session }) {
                 namaHistory={namaHistory}
                 onSubmit={handleSubmit}
                 onCancel={() => setTab('home')}
+              />
+            </div>
+
+            <div className={tab === 'ai' ? '' : 'pane-hidden'}>
+              <AiSpjInputView
+                onSaveSpj={handleSubmit}
+                onTransferToForm={handleTransferFromAi}
+                onGoToManualForm={showNewForm}
+                namaHistory={namaHistory}
               />
             </div>
 
@@ -384,6 +447,15 @@ function Shell({ session }: { session: Session }) {
             >
               <IconAdd size={20} />
               <span>Input SPJ</span>
+            </button>
+
+            <button
+              type="button"
+              className={`bottom-nav-item ${tab === 'ai' ? 'active' : ''}`}
+              onClick={() => goTab('ai')}
+            >
+              <IconSparkles size={20} color={tab === 'ai' ? 'var(--dark-pill)' : '#6366f1'} />
+              <span>Input AI</span>
             </button>
 
             <button
