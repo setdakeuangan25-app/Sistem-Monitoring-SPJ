@@ -16,6 +16,7 @@ import {
   IconCalendar,
   IconAudioWave,
   IconEdit,
+  IconPdf,
   IconChevronRight,
 } from './Icons';
 
@@ -59,15 +60,19 @@ export default function AiSpjInputView({
   const [inputText, setInputText] = useState('');
   const [additionalPrompt, setAdditionalPrompt] = useState('');
 
-  // Voice recording states
+  // Voice recording & Speech-to-Text states
   const [isRecording, setIsRecording] = useState(false);
   const [recordSeconds, setRecordSeconds] = useState(0);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [speechTranscript, setSpeechTranscript] = useState('');
+  const [isSpeechSupported, setIsSpeechSupported] = useState(false);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const timerIntervalRef = useRef<any>(null);
+  const speechRecognitionRef = useRef<any>(null);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const audioFileInputRef = useRef<HTMLInputElement>(null);
   const [micPermissionDenied, setMicPermissionDenied] = useState(false);
@@ -78,14 +83,14 @@ export default function AiSpjInputView({
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Draft review form state
+  // Draft review form state: Default values according to Setda Kobar SPJ requirements
   const [hasExtracted, setHasExtracted] = useState(false);
-  const [draftBagian, setDraftBagian] = useState<string>('UMUM');
-  const [draftKategori, setDraftKategori] = useState<string>('Belanja Langsung');
-  const [draftStatus, setDraftStatus] = useState<string>('ACC');
+  const [draftBagian, setDraftBagian] = useState<string>(''); // Default KOSONG
+  const [draftKategori, setDraftKategori] = useState<string>(''); // Default KOSONG
+  const [draftStatus, setDraftStatus] = useState<string>('REVISI'); // Default REVISI
   const [draftUraian, setDraftUraian] = useState<string>('');
-  const [draftTglMasuk, setDraftTglMasuk] = useState<string>(todayLocal());
-  const [draftKet, setDraftKet] = useState<string>('');
+  const [draftTglMasuk, setDraftTglMasuk] = useState<string>(todayLocal()); // Default HARI INI
+  const [draftKet, setDraftKet] = useState<string>(''); // Default KOSONG
   const [confidenceNote, setConfidenceNote] = useState<string>('');
 
   const keyRef = useRef(100);
@@ -94,22 +99,44 @@ export default function AiSpjInputView({
     { key: 1, nama: '', nominal: '' },
   ]);
 
-  // Clean up blob URLs
+  // Detect speech recognition capability
+  useEffect(() => {
+    const hasSpeech =
+      typeof window !== 'undefined' &&
+      ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window);
+    setIsSpeechSupported(Boolean(hasSpeech));
+  }, []);
+
+  // Clean up blob URLs and listeners
   useEffect(() => {
     return () => {
       if (audioUrl) URL.revokeObjectURL(audioUrl);
       if (imagePreview) URL.revokeObjectURL(imagePreview);
       if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
+      if (speechRecognitionRef.current) {
+        try {
+          speechRecognitionRef.current.stop();
+        } catch {}
+      }
     };
   }, [audioUrl, imagePreview]);
 
-  // Image handlers
+  // Image & PDF document handlers
   const handleImageSelect = (file: File | null) => {
     if (!file) return;
-    if (!file.type.startsWith('image/')) {
-      showToast('Peringatan', 'Silakan pilih berkas gambar kuitansi/dokumen (JPG, PNG, WebP).', 'warning');
+    const isImage = file.type.startsWith('image/');
+    const isPdf =
+      file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+
+    if (!isImage && !isPdf) {
+      showToast(
+        'Peringatan',
+        'Silakan pilih berkas kuitansi berupa Dokumen PDF atau Foto Gambar (JPG, PNG, WebP).',
+        'warning',
+      );
       return;
     }
+
     setImageFile(file);
     if (imagePreview) URL.revokeObjectURL(imagePreview);
     setImagePreview(URL.createObjectURL(file));
@@ -130,7 +157,7 @@ export default function AiSpjInputView({
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  // Audio file upload handler (alternative to live microphone)
+  // Audio file upload handler (direct audio alternative)
   const handleAudioFileSelect = (file: File | null) => {
     if (!file) return;
     setAudioBlob(file);
@@ -141,68 +168,148 @@ export default function AiSpjInputView({
     showToast('Audio Dipilih', `Berkas suara "${file.name}" siap dianalisis.`, 'success');
   };
 
-  // Voice recording handlers
+  // Voice recording & Web Speech Recognition handlers
   const startRecording = async () => {
-    try {
-      setAnalysisError(null);
-      setMicPermissionDenied(false);
+    setAnalysisError(null);
+    setMicPermissionDenied(false);
+    let recognitionStarted = false;
+    let audioStreamStarted = false;
 
-      if (!navigator?.mediaDevices?.getUserMedia) {
-        setMicPermissionDenied(true);
-        setAnalysisError(
-          'Perekaman mikrofon langsung dibatasi oleh izin peramban/iframe. Anda dapat mengunggah berkas rekaman suara (.mp3, .m4a, .wav) menggunakan tombol di bawah, atau beralih ke Teks Ringkas.',
-        );
-        return;
+    // 1. Try starting browser native Web Speech Recognition (Voice-to-Text in Bahasa Indonesia)
+    const SpeechRecognition =
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+
+    if (SpeechRecognition) {
+      try {
+        const recognition = new SpeechRecognition();
+        recognition.lang = 'id-ID';
+        recognition.continuous = true;
+        recognition.interimResults = true;
+
+        recognition.onresult = (event: any) => {
+          let currentTranscript = '';
+          for (let i = 0; i < event.results.length; i++) {
+            currentTranscript += event.results[i][0].transcript + ' ';
+          }
+          const trimmed = currentTranscript.trim();
+          setSpeechTranscript(trimmed);
+          setInputText((prev) => {
+            // Update input text with recognized words
+            return trimmed;
+          });
+        };
+
+        recognition.onerror = (event: any) => {
+          if (event.error === 'not-allowed') {
+            setMicPermissionDenied(true);
+            setAnalysisError(
+              'Akses mikrofon dibatasi oleh peramban. Anda dapat mengunggah berkas audio rekaman atau menggunakan simulasi dikte.',
+            );
+          }
+        };
+
+        recognition.onend = () => {
+          // Keep active state synchronized
+        };
+
+        recognition.start();
+        speechRecognitionRef.current = recognition;
+        recognitionStarted = true;
+      } catch (e) {
+        // Speech recognition couldn't be initialized directly
       }
+    }
 
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      audioChunksRef.current = [];
+    // 2. Try recording audio stream with MediaRecorder
+    if (navigator?.mediaDevices?.getUserMedia) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        audioChunksRef.current = [];
 
-      const mediaRecorder = new MediaRecorder(stream);
-      mediaRecorderRef.current = mediaRecorder;
-
-      mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          audioChunksRef.current.push(event.data);
+        let chosenMime = '';
+        if (typeof MediaRecorder !== 'undefined') {
+          const candidates = [
+            'audio/webm;codecs=opus',
+            'audio/webm',
+            'audio/mp4',
+            'audio/ogg;codecs=opus',
+            'audio/wav',
+          ];
+          for (const cand of candidates) {
+            if (MediaRecorder.isTypeSupported(cand)) {
+              chosenMime = cand;
+              break;
+            }
+          }
         }
-      };
 
-      mediaRecorder.onstop = () => {
-        const audioBlobCombined = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-        setAudioBlob(audioBlobCombined);
-        if (audioUrl) URL.revokeObjectURL(audioUrl);
-        setAudioUrl(URL.createObjectURL(audioBlobCombined));
-        stream.getTracks().forEach((track) => track.stop());
-      };
+        const mediaRecorder = new MediaRecorder(
+          stream,
+          chosenMime ? { mimeType: chosenMime } : undefined,
+        );
+        mediaRecorderRef.current = mediaRecorder;
 
-      mediaRecorder.start(250);
-      setIsRecording(true);
-      setRecordSeconds(0);
+        mediaRecorder.ondataavailable = (event) => {
+          if (event.data.size > 0) {
+            audioChunksRef.current.push(event.data);
+          }
+        };
 
-      timerIntervalRef.current = setInterval(() => {
-        setRecordSeconds((sec) => sec + 1);
-      }, 1000);
-    } catch (err: any) {
-      // Gracefully handle permission denied without throwing console.error
+        mediaRecorder.onstop = () => {
+          const finalMime = chosenMime || 'audio/webm';
+          const audioBlobCombined = new Blob(audioChunksRef.current, { type: finalMime });
+          setAudioBlob(audioBlobCombined);
+          if (audioUrl) URL.revokeObjectURL(audioUrl);
+          setAudioUrl(URL.createObjectURL(audioBlobCombined));
+          stream.getTracks().forEach((track) => track.stop());
+        };
+
+        mediaRecorder.start(250);
+        audioStreamStarted = true;
+      } catch (err: any) {
+        if (!recognitionStarted) {
+          setMicPermissionDenied(true);
+          setAnalysisError(
+            'Izin mikrofon belum aktif di peramban. Anda dapat menggunakan tombol "Simulasi Dikte CV ESARINDO" atau mengunggah rekaman audio di bawah.',
+          );
+          return;
+        }
+      }
+    } else if (!recognitionStarted) {
       setMicPermissionDenied(true);
       setAnalysisError(
-        'Izin akses mikrofon belum diizinkan oleh peramban. Anda dapat mengizinkannya di setelan browser, ATAU gunakan tombol "Unggah Berkas Audio" di bawah.',
+        'Perangkat perekam audio tidak didukung di peramban ini. Anda dapat mengunggah rekaman suara atau menggunakan teks ringkas.',
       );
+      return;
     }
+
+    setIsRecording(true);
+    setRecordSeconds(0);
+    timerIntervalRef.current = setInterval(() => {
+      setRecordSeconds((sec) => sec + 1);
+    }, 1000);
   };
 
   const stopRecording = () => {
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop();
-      setIsRecording(false);
-      if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
+    if (speechRecognitionRef.current) {
+      try {
+        speechRecognitionRef.current.stop();
+      } catch {}
     }
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      try {
+        mediaRecorderRef.current.stop();
+      } catch {}
+    }
+    setIsRecording(false);
+    if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
   };
 
   const clearAudio = () => {
     setAudioBlob(null);
     if (audioUrl) URL.revokeObjectURL(audioUrl);
     setAudioUrl(null);
+    setSpeechTranscript('');
     setRecordSeconds(0);
     if (audioFileInputRef.current) audioFileInputRef.current.value = '';
   };
@@ -220,39 +327,61 @@ export default function AiSpjInputView({
     });
   };
 
-  // Preset sample loader for one-click testing
-  const loadPreset = (type: 'atk' | 'perjadin' | 'konsumsi') => {
-    if (type === 'atk') {
+  // Presets loader including CamScanner PDF and CV ESARINDO format
+  const loadPreset = async (type: 'esarindo-pdf' | 'esarindo-dikte' | 'atk' | 'perjadin') => {
+    if (type === 'esarindo-pdf') {
+      try {
+        const res = await fetch('/assets/aistudio/CamScanner_26-10-26_11.47_87d7f432.pdf');
+        if (!res.ok) throw new Error('Berkas tidak ditemukan');
+        const blob = await res.blob();
+        const file = new File([blob], 'CamScanner_Kuitansi_Setda_Kobar.pdf', {
+          type: 'application/pdf',
+        });
+        handleImageSelect(file);
+        setActiveTab('photo');
+        showToast(
+          'Kuitansi PDF Dimuat',
+          'Dokumen Kuitansi CamScanner CV ESARINDO berhasil dimuat! Klik tombol "Analisis & Ekstrak Data SPJ" untuk memproses.',
+          'success',
+        );
+      } catch (e) {
+        showToast('Info', 'Memuat berkas PDF contoh...', 'info');
+      }
+    } else if (type === 'esarindo-dikte') {
+      setActiveTab('voice');
+      const textSample =
+        'Kuitansi Pembayaran Pekerjaan Belanja Bahan-Bahan Lainnya Keperluan Sekretariat Daerah Kabupaten Kotawaringin Barat, Sub Kegiatan Penyediaan Peralatan Rumah Tangga, Kegiatan Administrasi Umum Perangkat Daerah Berdasarkan: Surat Pesanan No. 027/SP. 45/BU.III tanggal 19 Oktober 2026, Berita Acara Pembayaran No. 900/BAP.63/BU tanggal 22 Oktober 2026, Berita Acara Serah Terima Hasil Pekerjaan No. 027/BASTP-52/X/2026/BU tanggal 21 Oktober 2026. Yang Menerima CV ESARINDO MULTIGUNA LESTARI dengan jumlah Rp 6.017.310.';
+      setInputText(textSample);
+      setSpeechTranscript(textSample);
+      showToast(
+        'Dikte Dimuat',
+        'Simulasi dikte suara kuitansi CV ESARINDO berhasil dimasukkan. Siap dianalisis AI!',
+        'info',
+      );
+    } else if (type === 'atk') {
       setActiveTab('text');
       setInputText(
-        'SPJ Belanja Alat Tulis Kantor (ATK) dan Kertas HVS untuk Sekretariat Daerah Bagian Umum. Toko Penyedia: Toko Barata Pangkalan Bun. Rincian: Kertas HVS A4 10 rim Rp 550.000, Tinta Printer Epson 4 botol Rp 480.000, Odner & Pulpen Rp 220.000. Total kuitansi Rp 1.250.000 tanggal 14 Maret 2026. Berkas kuitansi dan nota rincian barang sudah distempel lunas.',
+        'Kuitansi Belanja Alat Tulis Kantor (ATK) dan Kertas HVS untuk Sekretariat Daerah. Toko Penyedia: Toko Barata Pangkalan Bun. Rincian: Kertas HVS A4 10 rim Rp 550.000, Tinta Printer 4 botol Rp 480.000, Odner Rp 220.000. Total kuitansi Rp 1.250.000 tanggal 14 Maret 2026.',
       );
-      setAdditionalPrompt('Bagian Umum, Belanja Langsung');
-    } else if (type === 'perjadin') {
-      setActiveTab('text');
-      setInputText(
-        'Perjalanan Dinas Bagian Administrasi Pembangunan dalam rangka Koordinasi dan Konsultasi Pelaksanaan Rencana Aksi Daerah ke Bappedalitbang Provinsi Kalimantan Tengah di Palangka Raya selama 3 hari. Pelaksana tugas: 1. Ir. Bambang Hermanto nominal Rp 2.450.000, 2. Rahmat Hidayat, S.T. nominal Rp 1.850.000. Tanggal berangkat 10 Maret 2026. SPT dan SPPD lengkap.',
-      );
-      setAdditionalPrompt('Bagian Administrasi Pembangunan, Perjalanan Dinas');
+      showToast('Contoh Dimuat', 'Data contoh ATK berhasil dimuat.', 'info');
     } else {
       setActiveTab('text');
       setInputText(
-        'Kuitansi Pembayaran Konsumsi Makan Siang dan Snack Kegiatan Rapat Koordinasi Tim Penanganan Stunting Bagian Kesejahteraan Rakyat (Kesra). Rekanan Katering: RM Selera Kita. Total tagihan Rp 875.000 untuk 35 porsi rapat. Tanggal kuitansi 18 Maret 2026.',
+        'Perjalanan Dinas ke Palangka Raya selama 3 hari. Pelaksana tugas: Ir. Bambang Hermanto nominal Rp 2.450.000, Rahmat Hidayat nominal Rp 1.850.000. Tanggal berangkat 10 Maret 2026.',
       );
-      setAdditionalPrompt('Bagian Kesejahteraan Rakyat');
+      showToast('Contoh Dimuat', 'Data contoh Perjadin berhasil dimuat.', 'info');
     }
-    showToast('Contoh Dimuat', 'Data contoh berhasil dimuat. Klik tombol "Analisis & Ekstrak Data" di bawah!', 'info');
   };
 
   // Submit to Gemini API
   const handleAnalyze = async () => {
     const hasPhoto = !!imageFile;
-    const hasVoice = !!audioBlob;
+    const hasVoice = !!audioBlob || !!speechTranscript.trim();
     const hasText = !!inputText.trim();
 
     if (!hasPhoto && !hasVoice && !hasText) {
       setAnalysisError(
-        'Mohon sertakan setidaknya satu masukan: Upload foto kuitansi, rekam suara dikte, atau ketik rincian berkas.',
+        'Mohon sertakan setidaknya satu masukan: Upload kuitansi (PDF/Foto), dikte suara, atau ketik rincian berkas.',
       );
       return;
     }
@@ -268,23 +397,31 @@ export default function AiSpjInputView({
       let audioMimeType: string | undefined;
 
       if (imageFile) {
-        setAnalysisStep('Mengonversi foto kuitansi...');
+        setAnalysisStep('Mengonversi berkas dokumen (PDF/Foto)...');
         imageBase64 = await fileToBase64(imageFile);
-        imageMimeType = imageFile.type || 'image/jpeg';
+        imageMimeType =
+          imageFile.type ||
+          (imageFile.name.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg');
       }
 
       if (audioBlob) {
-        setAnalysisStep('Mengonversi rekaman audio suara...');
+        setAnalysisStep('Mengonversi data suara audio...');
         audioBase64 = await fileToBase64(audioBlob);
         audioMimeType = audioBlob.type || 'audio/webm';
       }
 
-      setAnalysisStep('Gemini AI sedang membaca dokumen & menghitung angka...');
+      setAnalysisStep('Gemini AI sedang membaca isi kuitansi & mengekstrak data...');
 
-      // Combine text and additional prompt
-      const fullText = [inputText.trim(), additionalPrompt.trim() ? `Catatan Verifikator: ${additionalPrompt.trim()}` : '']
-        .filter(Boolean)
-        .join('\n\n');
+      // Combine text notes and transcribed voice speech
+      const textParts = [
+        inputText.trim(),
+        speechTranscript && !inputText.includes(speechTranscript)
+          ? `Transkrip Dikte Suara:\n${speechTranscript.trim()}`
+          : '',
+        additionalPrompt.trim() ? `Catatan Pengguna: ${additionalPrompt.trim()}` : '',
+      ].filter(Boolean);
+
+      const fullText = textParts.join('\n\n');
 
       const response = await fetch('/api/gemini/extract-spj', {
         method: 'POST',
@@ -307,35 +444,50 @@ export default function AiSpjInputView({
       const raw = result.data;
       setAnalysisStep('Menyusun draf formulir SPJ...');
 
-      // Populate draft state
-      setDraftBagian(BAGIAN_LIST.includes(raw.bagian as any) ? raw.bagian : 'UMUM');
-      setDraftKategori(
-        KATEGORI_LIST.includes(raw.kategori as any) ? raw.kategori : 'Belanja Langsung',
-      );
-      setDraftStatus(raw.status || 'ACC');
+      // Enforce user rules:
+      // - Bagian: kosong jika tidak tertera jelas
+      // - Kategori: kosong jika tidak tertera jelas
+      // - Status: default REVISI
+      // - Catatan: default kosong
+      // - Tanggal: default hari ini
+      const bagianVal =
+        raw.bagian && BAGIAN_LIST.includes(raw.bagian as any) ? raw.bagian : '';
+      const kategoriVal =
+        raw.kategori && KATEGORI_LIST.includes(raw.kategori as any) ? raw.kategori : '';
+      const statusVal = raw.status || 'REVISI';
+      const ketVal = raw.ket || '';
+      const tglMasukVal = raw.tglMasuk || todayLocal();
+
+      setDraftBagian(bagianVal);
+      setDraftKategori(kategoriVal);
+      setDraftStatus(statusVal);
       setDraftUraian(raw.uraian || '');
-      setDraftTglMasuk(raw.tglMasuk || todayLocal());
-      setDraftKet(raw.ket || 'Diverifikasi secara otomatis dengan AI Gemini');
+      setDraftTglMasuk(tglMasukVal);
+      setDraftKet(ketVal);
       setConfidenceNote(
         raw.confidenceNote ||
-          'Data berhasil diekstrak dan disesuaikan dengan struktur SPJ Sekretariat Daerah Kobar.',
+          'Data kuitansi berhasil diekstrak dan disesuaikan dengan format SPJ Setda Kobar.',
       );
 
-      // Populate pegawai rows
+      // Populate pegawai / rekanan rows (e.g. CV ESARINDO MULTIGUNA LESTARI)
       if (Array.isArray(raw.pegawai) && raw.pegawai.length > 0) {
         setPegawaiRows(
           raw.pegawai.map((p: any) => ({
             key: nextKey(),
-            nama: String(p.nama || 'Penerima Belanja'),
+            nama: String(p.nama || 'CV ESARINDO MULTIGUNA LESTARI'),
             nominal: formatRibuan(String(p.nominal || 0)),
           })),
         );
       } else {
-        setPegawaiRows([{ key: nextKey(), nama: 'Penerima Belanja', nominal: '0' }]);
+        setPegawaiRows([{ key: nextKey(), nama: '', nominal: '' }]);
       }
 
       setHasExtracted(true);
-      showToast('Ekstraksi Sukses', 'Data SPJ berhasil dianalisis oleh AI! Silakan tinjau draf di panel kanan.', 'success');
+      showToast(
+        'Ekstraksi Sukses',
+        'Data kuitansi berhasil dianalisis AI! Silakan periksa draf di panel kanan.',
+        'success',
+      );
     } catch (err: any) {
       console.error('Error analyzing SPJ:', err);
       setAnalysisError(err.message || 'Terjadi kesalahan saat memproses data dengan AI.');
@@ -356,7 +508,7 @@ export default function AiSpjInputView({
 
   const removeRow = (key: number) => {
     if (pegawaiRows.length <= 1) {
-      showToast('Peringatan', 'Minimal harus ada 1 nama pegawai/rekanan!', 'warning');
+      showToast('Peringatan', 'Minimal harus ada 1 nama penerima/rekanan!', 'warning');
       return;
     }
     setPegawaiRows((rows) => rows.filter((r) => r.key !== key));
@@ -376,7 +528,11 @@ export default function AiSpjInputView({
       .map((r) => ({ nama: r.nama, nominal: Number(r.digits) }));
 
     if (pegawai.length === 0) {
-      showToast('Peringatan', 'Mohon isi minimal 1 penerima belanja dengan nominal valid.', 'warning');
+      showToast(
+        'Peringatan',
+        'Mohon isi nama rekanan/penerima beserta nominal yang valid.',
+        'warning',
+      );
       return;
     }
 
@@ -408,14 +564,18 @@ export default function AiSpjInputView({
   // Transfer to full SpjForm
   const handleOpenInFullForm = () => {
     const pegawai = pegawaiRows
-      .map((r) => ({ nama: titleCase(r.nama.trim()), nominal: Number(onlyDigits(r.nominal) || 0) }))
+      .map((r) => ({
+        nama: titleCase(r.nama.trim()),
+        nominal: Number(onlyDigits(r.nominal) || 0),
+      }))
       .filter((r) => r.nama);
 
     onTransferToForm({
       bagian: draftBagian,
       kategori: draftKategori,
       uraian: draftUraian,
-      pegawai: pegawai.length > 0 ? pegawai : [{ nama: 'Penerima Belanja', nominal: totalNominal }],
+      pegawai:
+        pegawai.length > 0 ? pegawai : [{ nama: 'Penerima Belanja', nominal: totalNominal }],
       tglMasuk: draftTglMasuk,
       status: draftStatus,
       ket: draftKet,
@@ -429,12 +589,22 @@ export default function AiSpjInputView({
     clearAudio();
     setInputText('');
     setAdditionalPrompt('');
+    setSpeechTranscript('');
     setAnalysisError(null);
+    setDraftBagian('');
+    setDraftKategori('');
+    setDraftStatus('REVISI');
+    setDraftKet('');
+    setDraftTglMasuk(todayLocal());
     setPegawaiRows([{ key: nextKey(), nama: '', nominal: '' }]);
   };
 
+  const isPdf =
+    imageFile?.type === 'application/pdf' ||
+    Boolean(imageFile?.name?.toLowerCase().endsWith('.pdf'));
+
   return (
-    <div className="modern-form-container" style={{ maxWidth: '1200px', margin: '0 auto' }}>
+    <div className="modern-form-container" style={{ maxWidth: '1220px', margin: '0 auto' }}>
       {/* Hero Action Banner matching Dashboard style */}
       <div
         className="hero-action-card mb-4"
@@ -442,93 +612,33 @@ export default function AiSpjInputView({
           background: 'linear-gradient(135deg, #0f172a 0%, #1e1b4b 45%, #312e81 80%, #3730a3 100%)',
           color: '#ffffff',
           borderRadius: '24px',
-          padding: '24px 28px',
+          padding: '20px 24px',
           boxShadow: '0 8px 25px rgba(15, 23, 42, 0.15)',
         }}
       >
-        <div className="hero-text">
-          <div className="d-flex align-items-center gap-2 mb-2 flex-wrap">
-            <span
-              className="badge"
-              style={{
-                background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-                color: '#ffffff',
-                fontWeight: 800,
-                fontSize: '0.72rem',
-                letterSpacing: '0.5px',
-                padding: '5px 12px',
-                borderRadius: '9999px',
-                boxShadow: '0 2px 8px rgba(99, 102, 241, 0.4)',
-              }}
-            >
-              <IconSparkles size={12} color="#ffffff" className="me-1 inline" />
-              AI SCANNER · GEMINI 3.1
-            </span>
-            <span
-              className="badge"
-              style={{
-                backgroundColor: 'rgba(255, 255, 255, 0.15)',
-                color: '#ffffff',
-                fontWeight: 600,
-                fontSize: '0.72rem',
-                padding: '5px 12px',
-                borderRadius: '9999px',
-              }}
-            >
-              Setda Kab. Kotawaringin Barat
-            </span>
+        <div className="hero-text d-flex align-items-center justify-content-between flex-wrap gap-2">
+          <div>
+            <div className="d-flex align-items-center gap-2 mb-1">
+              <span
+                className="badge"
+                style={{
+                  background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                  color: '#ffffff',
+                  fontWeight: 800,
+                  fontSize: '0.72rem',
+                  letterSpacing: '0.5px',
+                  padding: '4px 10px',
+                  borderRadius: '9999px',
+                }}
+              >
+                <IconSparkles size={12} color="#ffffff" className="me-1 inline" />
+                AI SCANNER · SETDA KOBAR
+              </span>
+            </div>
+            <h3 className="hero-heading" style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0 }}>
+              Input SPJ Otomatis dengan AI
+            </h3>
           </div>
-
-          <h3 className="hero-heading" style={{ fontSize: '1.4rem', fontWeight: 800, margin: '0 0 6px 0' }}>
-            Input SPJ Otomatis dengan AI
-          </h3>
-          <p className="hero-desc" style={{ color: 'rgba(255, 255, 255, 0.85)', fontSize: '0.84rem', margin: 0, maxWidth: '780px' }}>
-            Pindai foto kuitansi/nota, rekam suara dikte verifikator, atau masukkan ringkasan berkas. AI Gemini akan membaca teks, menghitung nilai nominal, mengelompokkan Bagian, dan menyusun draf SPJ siap simpan.
-          </p>
-        </div>
-
-        <div className="hero-cta-wrap mt-3 mt-sm-0 d-flex align-items-center gap-2 flex-wrap">
-          <button
-            type="button"
-            className="btn btn-sm"
-            style={{
-              backgroundColor: 'rgba(255, 255, 255, 0.12)',
-              color: '#ffffff',
-              border: '1px solid rgba(255, 255, 255, 0.25)',
-              borderRadius: '9999px',
-              padding: '6px 14px',
-              fontWeight: 700,
-              fontSize: '0.78rem',
-            }}
-            onClick={() => loadPreset('atk')}
-          >
-            Contoh Kuitansi ATK
-          </button>
-          <button
-            type="button"
-            className="btn btn-sm"
-            style={{
-              backgroundColor: 'rgba(255, 255, 255, 0.12)',
-              color: '#ffffff',
-              border: '1px solid rgba(255, 255, 255, 0.25)',
-              borderRadius: '9999px',
-              padding: '6px 14px',
-              fontWeight: 700,
-              fontSize: '0.78rem',
-            }}
-            onClick={() => loadPreset('perjadin')}
-          >
-            Contoh Perjadin
-          </button>
-          <button
-            type="button"
-            className="btn-hero-new"
-            onClick={onGoToManualForm}
-            title="Buka form input manual biasa"
-          >
-            <IconEdit size={14} />
-            <span>Form Manual</span>
-          </button>
         </div>
       </div>
 
@@ -549,11 +659,8 @@ export default function AiSpjInputView({
             <div className="form-header-group pb-3 mb-3 d-flex justify-content-between align-items-center">
               <div>
                 <h4 style={{ fontSize: '1.05rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
-                  1. Masukan Media SPJ
+                  1. Masukan Dokumen / Suara
                 </h4>
-                <p style={{ fontSize: '0.76rem', color: 'var(--text-muted)', margin: '2px 0 0 0' }}>
-                  Pilih foto kuitansi, rekam suara dikte, atau tempel teks ringkasan.
-                </p>
               </div>
               <span
                 className="badge"
@@ -583,11 +690,11 @@ export default function AiSpjInputView({
                     ? 'bg-white shadow-sm font-bold text-slate-900'
                     : 'text-slate-600 hover:text-slate-900 border-0'
                 }`}
-                style={{ fontSize: '0.78rem' }}
+                style={{ fontSize: '0.8rem' }}
                 onClick={() => setActiveTab('photo')}
               >
                 <IconCamera size={15} color={activeTab === 'photo' ? '#2563eb' : 'currentColor'} />
-                <span>Foto Kuitansi</span>
+                <span>Foto/Upload</span>
               </button>
 
               <button
@@ -597,10 +704,10 @@ export default function AiSpjInputView({
                     ? 'bg-white shadow-sm font-bold text-slate-900'
                     : 'text-slate-600 hover:text-slate-900 border-0'
                 }`}
-                style={{ fontSize: '0.78rem' }}
+                style={{ fontSize: '0.8rem' }}
                 onClick={() => setActiveTab('voice')}
               >
-                <IconMic size={15} color={activeTab === 'voice' ? '#ef4444' : 'currentColor'} />
+                <IconMic size={15} color={activeTab === 'voice' ? '#2563eb' : 'currentColor'} />
                 <span>Dikte Suara</span>
               </button>
 
@@ -611,7 +718,7 @@ export default function AiSpjInputView({
                     ? 'bg-white shadow-sm font-bold text-slate-900'
                     : 'text-slate-600 hover:text-slate-900 border-0'
                 }`}
-                style={{ fontSize: '0.78rem' }}
+                style={{ fontSize: '0.8rem' }}
                 onClick={() => setActiveTab('text')}
               >
                 <IconFileText size={15} color={activeTab === 'text' ? '#7c3aed' : 'currentColor'} />
@@ -619,7 +726,7 @@ export default function AiSpjInputView({
               </button>
             </div>
 
-            {/* TAB CONTENT: Photo */}
+            {/* TAB CONTENT: Photo & PDF */}
             {activeTab === 'photo' && (
               <div className="flex-fill d-flex flex-column">
                 {!imagePreview ? (
@@ -627,168 +734,121 @@ export default function AiSpjInputView({
                     onDragOver={(e) => e.preventDefault()}
                     onDrop={handleDrop}
                     onClick={() => fileInputRef.current?.click()}
-                    className="border-2 border-dashed border-slate-300 hover:border-blue-500 rounded-2xl p-4 text-center cursor-pointer transition-all flex flex-col items-center justify-center flex-fill min-h-[180px] bg-slate-50/60 hover:bg-blue-50/40"
+                    className="border-2 border-dashed border-slate-300 hover:border-blue-500 rounded-2xl p-6 text-center cursor-pointer transition-all flex flex-col items-center justify-center flex-fill min-h-[220px] bg-slate-50/70 hover:bg-blue-50/50 shadow-sm"
+                    style={{ borderStyle: 'dashed' }}
                   >
                     <input
                       ref={fileInputRef}
                       type="file"
-                      accept="image/*"
-                      capture="environment"
-                      className="hidden"
+                      accept="image/*,application/pdf"
+                      style={{ display: 'none' }}
                       onChange={(e) => handleImageSelect(e.target.files?.[0] || null)}
                     />
-                    <div className="w-12 h-12 rounded-2xl bg-blue-100 text-blue-600 flex items-center justify-center mb-2 shadow-sm">
-                      <IconUpload size={22} color="#2563eb" />
+                    <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white flex items-center justify-center mb-3 shadow-md">
+                      <IconUpload size={24} color="#ffffff" />
                     </div>
-                    <span className="font-bold text-sm text-slate-800">
-                      Klik untuk Pilih Foto atau Seret ke Sini
+                    <span className="font-extrabold text-sm text-slate-800">
+                      Pilih atau Seret Berkas Kuitansi (PDF/Foto)
                     </span>
-                    <span className="text-xs text-slate-500 mt-1">
-                      Mendukung foto kuitansi, nota toko, bon bensin, atau dokumen dinas (JPG, PNG, WebP)
-                    </span>
-                    <div className="mt-3 inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-white border border-slate-200 text-slate-600 text-[11px] font-semibold">
-                      <IconCamera size={12} />
-                      Bisa langsung foto dengan kamera HP
-                    </div>
                   </div>
                 ) : (
-                  <div className="relative rounded-2xl overflow-hidden border border-slate-200 bg-slate-900 flex flex-col items-center justify-center p-2 min-h-[220px]">
-                    <img
-                      src={imagePreview}
-                      alt="Pratinjau Kuitansi"
-                      className="max-h-[260px] w-auto object-contain rounded-xl"
-                    />
+                  <div className="relative rounded-2xl overflow-hidden border border-slate-200 bg-slate-900 flex flex-col items-center justify-center p-3 min-h-[220px]">
+                    {isPdf ? (
+                      <div className="text-center p-4 w-100 d-flex flex-column align-items-center">
+                        <div className="w-16 h-16 rounded-2xl bg-red-600 flex items-center justify-center mb-2 shadow-lg">
+                          <IconPdf size={32} color="#ffffff" />
+                        </div>
+                        <div className="font-bold text-sm text-white max-w-[260px] truncate">
+                          {imageFile?.name || 'Dokumen Kuitansi.pdf'}
+                        </div>
+                        <div className="text-xs text-slate-400 mt-1">
+                          {imageFile ? (imageFile.size / 1024).toFixed(0) : '0'} KB • Dokumen PDF
+                        </div>
+                      </div>
+                    ) : (
+                      <img
+                        src={imagePreview}
+                        alt="Pratinjau Kuitansi"
+                        className="max-h-[260px] w-auto object-contain rounded-xl"
+                      />
+                    )}
+
                     <div className="absolute top-3 right-3 flex items-center gap-1.5">
                       <button
                         type="button"
                         onClick={clearImage}
                         className="px-2.5 py-1.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold shadow-md transition-all flex items-center gap-1"
-                        title="Hapus foto ini"
+                        title="Hapus berkas ini"
                       >
                         <IconTrash size={13} color="#ffffff" />
                         <span>Hapus</span>
                       </button>
                     </div>
-                    {imageFile && (
-                      <div className="absolute bottom-3 left-3 px-2.5 py-1 rounded-lg bg-black/70 backdrop-blur-md text-white text-[11px] font-medium flex items-center gap-2">
-                        <span className="truncate max-w-[150px]">{imageFile.name}</span>
-                        <span>•</span>
-                        <span>{(imageFile.size / 1024).toFixed(0)} KB</span>
-                      </div>
-                    )}
                   </div>
                 )}
               </div>
             )}
 
-            {/* TAB CONTENT: Voice */}
+            {/* TAB CONTENT: Voice & Dictation */}
             {activeTab === 'voice' && (
-              <div className="flex-fill d-flex flex-column align-items-center justify-content-center p-3 rounded-2xl bg-slate-50 border border-slate-200 min-h-[220px]">
+              <div className="flex-fill d-flex flex-column align-items-center justify-content-center p-6 rounded-2xl bg-slate-50/80 border border-slate-200 min-h-[220px]">
                 <input
                   ref={audioFileInputRef}
                   type="file"
                   accept="audio/*"
-                  className="hidden"
+                  style={{ display: 'none' }}
                   onChange={(e) => handleAudioFileSelect(e.target.files?.[0] || null)}
                 />
 
-                {!audioBlob ? (
-                  <div className="text-center w-100 d-flex flex-column align-items-center">
-                    <button
-                      type="button"
-                      onClick={isRecording ? stopRecording : startRecording}
-                      className={`w-16 h-16 rounded-full flex items-center justify-center transition-all shadow-lg active:scale-95 mb-2 ${
-                        isRecording
-                          ? 'bg-red-600 hover:bg-red-700 text-white animate-pulse ring-4 ring-red-200'
-                          : 'bg-gradient-to-tr from-rose-500 to-red-600 text-white hover:brightness-105'
-                      }`}
-                      title={isRecording ? 'Klik untuk berhenti merekam' : 'Klik untuk mulai rekam suara'}
-                    >
-                      <IconMic size={26} color="#ffffff" />
-                    </button>
+                <div className="text-center w-100 d-flex flex-column align-items-center justify-content-center my-auto">
+                  <button
+                    type="button"
+                    onClick={isRecording ? stopRecording : startRecording}
+                    className={`w-20 h-20 rounded-full flex items-center justify-center transition-all shadow-xl active:scale-95 ${
+                      isRecording
+                        ? 'bg-red-600 hover:bg-red-700 text-white animate-pulse ring-8 ring-red-100'
+                        : 'bg-gradient-to-tr from-blue-600 to-indigo-600 text-white hover:brightness-105 hover:shadow-2xl'
+                    }`}
+                    title={isRecording ? 'Berhenti dikte' : 'Mulai dikte suara'}
+                  >
+                    <IconMic size={34} color="#ffffff" />
+                  </button>
 
-                    <div className="font-extrabold text-sm text-slate-800">
-                      {isRecording ? 'Sedang Merekam Suara...' : 'Klik untuk Mulai Dikte Suara'}
+                  {isRecording && (
+                    <div className="mt-3 flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full bg-red-600 animate-ping" />
+                      <span className="font-mono text-sm font-bold text-red-600">
+                        {Math.floor(recordSeconds / 60)
+                          .toString()
+                          .padStart(2, '0')}
+                        :{(recordSeconds % 60).toString().padStart(2, '0')}
+                      </span>
                     </div>
+                  )}
 
-                    {isRecording ? (
-                      <div className="mt-2 flex items-center gap-2">
-                        <span className="w-2.5 h-2.5 rounded-full bg-red-600 animate-ping" />
-                        <span className="font-mono text-base font-bold text-red-600">
-                          {Math.floor(recordSeconds / 60)
-                            .toString()
-                            .padStart(2, '0')}
-                          :{(recordSeconds % 60).toString().padStart(2, '0')}
-                        </span>
-                      </div>
-                    ) : (
-                      <p className="text-xs text-slate-500 mt-1 max-w-xs mb-0">
-                        Ucapkan uraian belanja, nama penerima, nominal rupiah, dan bagian terkait.
+                  {/* Live speech transcript box */}
+                  {(speechTranscript || isRecording) && (
+                    <div className="mt-3 p-3 rounded-xl bg-white border border-blue-200 text-start w-100 shadow-sm">
+                      <p className="text-xs text-slate-800 font-medium mb-0 max-h-24 overflow-y-auto">
+                        {speechTranscript || 'Mendengarkan ucapan Anda...'}
                       </p>
-                    )}
-
-                    {isRecording ? (
-                      <button
-                        type="button"
-                        onClick={stopRecording}
-                        className="mt-3 px-4 py-1.5 rounded-full bg-red-100 hover:bg-red-200 text-red-700 text-xs font-bold transition-all"
-                      >
-                        Selesai Merekam
-                      </button>
-                    ) : (
-                      <div className="mt-3 pt-2 border-t border-slate-200 w-100 max-w-xs d-flex flex-column align-items-center gap-2">
-                        <span className="text-[11px] text-slate-400 font-medium">atau tanpa mikrofon:</span>
-                        <button
-                          type="button"
-                          onClick={() => audioFileInputRef.current?.click()}
-                          className="btn btn-sm btn-light border bg-white text-slate-700 hover:bg-slate-50 text-xs font-bold px-3 py-1.5 rounded-xl d-inline-flex align-items-center gap-1.5 shadow-sm"
-                        >
-                          <IconUpload size={13} color="#475569" />
-                          <span>Unggah Berkas Audio (.mp3, .m4a, .wav)</span>
-                        </button>
-
-                        {micPermissionDenied && (
-                          <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-[11px] text-start w-100 mt-1">
-                            <span className="font-bold block mb-1">💡 Izin Mikrofon Belum Aktif</span>
-                            <span>
-                              Jika peramban membatasi mikrofon di iframe, Anda dapat mengunggah berkas rekaman suara secara manual di atas atau gunakan tab <b>Teks Ringkas</b>.
-                            </span>
-                            <div className="mt-2 text-end">
-                              <button
-                                type="button"
-                                onClick={() => setActiveTab('text')}
-                                className="px-2 py-1 rounded bg-amber-200 hover:bg-amber-300 text-amber-900 font-bold text-[10px]"
-                              >
-                                Beralih ke Teks Ringkas ➜
-                              </button>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div className="w-100 d-flex flex-column align-items-center text-center">
-                    <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center mb-2">
-                      <IconAudioWave size={22} color="#059669" />
                     </div>
-                    <span className="font-bold text-sm text-slate-800 mb-2">
-                      Rekaman Suara Siap Dianalisis
-                    </span>
-                    {audioUrl && (
-                      <audio controls src={audioUrl} className="w-100 max-w-xs mb-3 h-10" />
-                    )}
-                    <div className="d-flex gap-2">
+                  )}
+
+                  {/* Audio player if audio blob captured */}
+                  {audioUrl && !isRecording && (
+                    <div className="mt-3 w-100 d-flex flex-column align-items-center">
+                      <audio controls src={audioUrl} className="w-100 max-w-xs h-9 mb-2" />
                       <button
                         type="button"
                         onClick={clearAudio}
-                        className="px-3 py-1.5 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-bold transition-all"
+                        className="btn btn-sm btn-light border text-[11px] py-1 px-3 rounded-lg text-slate-600 font-medium"
                       >
-                        Ganti / Rekam Ulang
+                        Hapus Rekaman
                       </button>
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             )}
 
@@ -800,52 +860,11 @@ export default function AiSpjInputView({
                   rows={6}
                   value={inputText}
                   onChange={(e) => setInputText(e.target.value)}
-                  placeholder="Ketik rincian nota atau salin teks ringkasan belanja di sini...&#10;Contoh: Belanja ATK Bagian Umum toko Barata Rp 1.250.000 tgl 14 Maret 2026 rincian kertas dan tinta."
-                  style={{ minHeight: '140px', fontSize: '0.85rem' }}
+                  placeholder="Ketik rincian nota atau kuitansi di sini..."
+                  style={{ minHeight: '180px', fontSize: '0.85rem' }}
                 />
-
-                <div className="mt-2 d-flex flex-wrap gap-1">
-                  <span className="text-[11px] text-slate-400 font-bold me-1 align-self-center">
-                    Contoh cepat:
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => loadPreset('atk')}
-                    className="px-2 py-0.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 text-[11px] font-semibold border border-slate-200"
-                  >
-                    + Belanja ATK
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => loadPreset('perjadin')}
-                    className="px-2 py-0.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 text-[11px] font-semibold border border-slate-200"
-                  >
-                    + Perjadin
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => loadPreset('konsumsi')}
-                    className="px-2 py-0.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 text-[11px] font-semibold border border-slate-200"
-                  >
-                    + Konsumsi
-                  </button>
-                </div>
               </div>
             )}
-
-            {/* Optional Additional Guidance Prompt */}
-            <div className="mt-3 pt-3 border-t border-slate-100">
-              <label className="form-label-sub" style={{ color: 'var(--text-secondary)' }}>
-                Petunjuk Tambahan untuk AI (Opsional)
-              </label>
-              <input
-                type="text"
-                className="form-input-modern py-1.5 text-xs"
-                value={additionalPrompt}
-                onChange={(e) => setAdditionalPrompt(e.target.value)}
-                placeholder="Misal: Bagian Kesra, ada 2 orang penerima, dll."
-              />
-            </div>
 
             {/* Error Banner */}
             {analysisError && (
@@ -909,11 +928,6 @@ export default function AiSpjInputView({
                 <h4 style={{ fontSize: '1.05rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
                   2. Draf &amp; Hasil Verifikasi SPJ
                 </h4>
-                <p style={{ fontSize: '0.76rem', color: 'var(--text-muted)', margin: '2px 0 0 0' }}>
-                  {hasExtracted
-                    ? 'Periksa dan sesuaikan data sebelum disimpan langsung ke sistem register.'
-                    : 'Hasil ekstraksi AI akan muncul di panel ini setelah tombol analisis ditekan.'}
-                </p>
               </div>
               <span
                 className="badge"
@@ -932,60 +946,17 @@ export default function AiSpjInputView({
             </div>
 
             {!hasExtracted ? (
-              /* Empty State Placeholder */
-              <div className="flex-fill d-flex flex-column align-items-center justify-content-center p-4 text-center my-auto min-h-[360px]">
+              /* Empty State Placeholder - Super Clean */
+              <div className="flex-fill d-flex flex-column align-items-center justify-content-center p-4 text-center my-auto min-h-[300px]">
                 <div
                   className="w-16 h-16 rounded-3xl d-flex align-items-center justify-content-center mb-3 shadow-sm"
                   style={{ background: 'linear-gradient(135deg, #e0e7ff, #ede9fe)', color: '#4f46e5' }}
                 >
                   <IconSparkles size={32} color="#4f46e5" />
                 </div>
-                <h5 className="font-extrabold text-slate-800 mb-1" style={{ fontSize: '1.1rem' }}>
+                <h5 className="font-extrabold text-slate-700 mb-0" style={{ fontSize: '1rem' }}>
                   Belum Ada Berkas yang Dianalisis
                 </h5>
-                <p className="text-slate-500 text-xs max-w-sm mb-4">
-                  Unggah kuitansi foto, rekam suara verifikator, atau tempelkan nota belanja di panel sebelah kiri, lalu tekan <b>Analisis &amp; Ekstrak Data SPJ</b>.
-                </p>
-
-                <div
-                  className="p-3 rounded-2xl w-100 max-w-md text-start"
-                  style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0' }}
-                >
-                  <div className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider mb-2">
-                    Langkah Kerja AI Gemini:
-                  </div>
-                  <div className="d-flex align-items-center gap-2.5 mb-2 text-xs text-slate-700">
-                    <span className="w-5 h-5 rounded-full bg-blue-100 text-blue-700 font-bold d-flex align-items-center justify-content-center text-[10px] shrink-0">
-                      1
-                    </span>
-                    <span>Pilih media masukan (Foto Kuitansi, Dikte Suara, atau Teks).</span>
-                  </div>
-                  <div className="d-flex align-items-center gap-2.5 mb-2 text-xs text-slate-700">
-                    <span className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 font-bold d-flex align-items-center justify-content-center text-[10px] shrink-0">
-                      2
-                    </span>
-                    <span>AI mengekstrak nama penerima, nominal rupiah, uraian, dan bagian.</span>
-                  </div>
-                  <div className="d-flex align-items-center gap-2.5 text-xs text-slate-700">
-                    <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 font-bold d-flex align-items-center justify-content-center text-[10px] shrink-0">
-                      3
-                    </span>
-                    <span>Tinjau dan simpan langsung ke Register SPJ atau lengkapi di form.</span>
-                  </div>
-                </div>
-
-                <div className="mt-4 d-flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      loadPreset('atk');
-                      setTimeout(handleAnalyze, 100);
-                    }}
-                    className="btn btn-sm btn-outline-primary rounded-pill font-bold px-3 text-xs"
-                  >
-                    ⚡ Jalankan Uji Coba Otomatis (Demo)
-                  </button>
-                </div>
               </div>
             ) : (
               /* Extracted Review & Editor Form */
@@ -1004,7 +975,7 @@ export default function AiSpjInputView({
                       <IconCheck size={16} color="#2563eb" />
                     </div>
                     <div className="flex-grow-1 text-xs">
-                      <span className="font-bold block mb-0.5">Hasil Pembacaan Dokumen:</span>
+                      <span className="font-bold block mb-0.5">Hasil Pembacaan Dokumen AI:</span>
                       <span className="text-blue-900">{confidenceNote}</span>
                     </div>
                   </div>
@@ -1017,7 +988,7 @@ export default function AiSpjInputView({
                       <IconFileText size={16} color="#2563eb" />
                       <span>Identitas &amp; Klasifikasi SPJ</span>
                     </h5>
-                    <span className="form-section-badge">Otomatis Terisi</span>
+                    <span className="form-section-badge">Bagian &amp; Kategori Default Kosong</span>
                   </div>
 
                   <div className="row g-2">
@@ -1030,6 +1001,7 @@ export default function AiSpjInputView({
                         value={draftBagian}
                         onChange={(e) => setDraftBagian(e.target.value)}
                       >
+                        <option value="">-- Kosong / Belum Dipilih --</option>
                         {BAGIAN_LIST.map((b) => (
                           <option key={b} value={b}>
                             {b}
@@ -1047,6 +1019,7 @@ export default function AiSpjInputView({
                         value={draftKategori}
                         onChange={(e) => setDraftKategori(e.target.value)}
                       >
+                        <option value="">-- Kosong / Belum Dipilih --</option>
                         {KATEGORI_LIST.map((k) => (
                           <option key={k} value={k}>
                             {k}
@@ -1057,38 +1030,39 @@ export default function AiSpjInputView({
 
                     <div className="col-12 col-sm-4">
                       <label className="form-label-modern label-blue text-xs">
-                        Status Verifikasi
+                        Status Verifikasi <span className="text-danger">*</span>
                       </label>
                       <select
                         className="form-select-modern input-blue py-1.5 text-xs font-semibold"
                         value={draftStatus}
                         onChange={(e) => setDraftStatus(e.target.value)}
                       >
+                        <option value="REVISI">Perlu Revisi (Revisi - Default)</option>
                         <option value="ACC">Disetujui (ACC)</option>
-                        <option value="REVISI">Perlu Revisi (Revisi)</option>
                         <option value="">Proses / Menunggu</option>
                       </select>
                     </div>
                   </div>
                 </div>
 
-                {/* Section 2: Uraian Kegiatan */}
+                {/* Section 2: Uraian Kegiatan (Lengkap dengan rincian dokumen) */}
                 <div className="form-section-block form-section-violet py-3 px-3.5 mb-3">
                   <div className="form-section-header mb-2 pb-2">
                     <h5 className="form-section-title" style={{ fontSize: '0.85rem' }}>
                       <IconFileText size={16} color="#7c3aed" />
-                      <span>Uraian Kegiatan SPJ</span>
+                      <span>Uraian Kegiatan &amp; Dokumen Pendukung (SP, BAP, BASTP)</span>
                     </h5>
-                    <span className="form-section-badge">Deskripsi</span>
+                    <span className="form-section-badge">Lengkap</span>
                   </div>
 
                   <div>
                     <textarea
                       className="form-textarea-modern input-violet text-xs"
-                      rows={2}
+                      rows={5}
                       value={draftUraian}
                       onChange={(e) => setDraftUraian(e.target.value)}
-                      placeholder="Uraian kegiatan belanja..."
+                      placeholder="Uraian kegiatan belanja secara lengkap..."
+                      style={{ lineHeight: 1.5, fontSize: '0.82rem' }}
                     />
                   </div>
                 </div>
@@ -1098,7 +1072,7 @@ export default function AiSpjInputView({
                   <div className="form-section-header mb-2.5 pb-2 d-flex align-items-center justify-content-between">
                     <h5 className="form-section-title" style={{ fontSize: '0.85rem' }}>
                       <IconCheck size={16} color="#059669" />
-                      <span>Penerima Belanja &amp; Nilai Rupiah</span>
+                      <span>Rekanan Penerima &amp; Jumlah Kuitansi</span>
                     </h5>
                     <div className="d-flex align-items-center gap-2">
                       <span className="text-xs text-slate-500 font-semibold">Total:</span>
@@ -1134,11 +1108,11 @@ export default function AiSpjInputView({
                             className="form-input-modern py-1 text-xs"
                             value={row.nama}
                             onChange={(e) => updateRow(row.key, { nama: e.target.value })}
-                            placeholder="Nama Pegawai / Rekanan Toko"
+                            placeholder="Nama CV Rekanan / Toko / Pegawai"
                             list="nama-history-list"
                           />
                         </div>
-                        <div style={{ width: '160px' }}>
+                        <div style={{ width: '170px' }}>
                           <div className="position-relative">
                             <span
                               className="position-absolute start-0 top-50 translate-middle-y ps-2 text-slate-400 font-bold"
@@ -1188,7 +1162,7 @@ export default function AiSpjInputView({
                   <div className="col-12 col-sm-5">
                     <div className="form-section-block form-section-amber py-2.5 px-3 mb-0 h-100">
                       <label className="form-label-modern label-amber text-xs mb-1">
-                        Tanggal Masuk SPJ
+                        Tanggal Masuk (Default Hari Ini)
                       </label>
                       <div className="d-flex gap-1.5 align-items-center">
                         <input
@@ -1212,14 +1186,14 @@ export default function AiSpjInputView({
                   <div className="col-12 col-sm-7">
                     <div className="form-section-block form-section-rose py-2.5 px-3 mb-0 h-100">
                       <label className="form-label-modern label-rose text-xs mb-1">
-                        Catatan Verifikator
+                        Catatan Verifikator (Default Kosong)
                       </label>
                       <input
                         type="text"
                         className="form-input-modern input-rose py-1 text-xs"
                         value={draftKet}
                         onChange={(e) => setDraftKet(e.target.value)}
-                        placeholder="Kelengkapan kuitansi, nota, dll."
+                        placeholder="Default kosong..."
                       />
                     </div>
                   </div>

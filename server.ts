@@ -49,41 +49,33 @@ app.post('/api/gemini/extract-spj', async (req: Request, res: Response) => {
 
     // System prompt & guidance
     const promptInstructions = `
-Ekstrak informasi SPJ (Surat Pertanggungjawaban) dari masukan berikut (bisa berupa foto kuitansi/dokumen dinas, rekaman suara, dan/atau teks ringkasan) ke format data SPJ terstruktur Sekretariat Daerah Kotawaringin Barat (Setda Kobar).
+Ekstrak informasi SPJ (Surat Pertanggungjawaban) dari masukan berikut (bisa berupa dokumen/kuitansi PDF/gambar, rekaman suara/dikte, dan/atau teks ringkasan) ke format data SPJ terstruktur Sekretariat Daerah Kotawaringin Barat (Setda Kobar).
 
-Ketentuan Ekstraksi:
-1. bagian: Pilih salah satu dari nilai berikut:
-   - "UMUM" (bagian umum, perlengkapan, operasional pimpinan, sekretariat)
-   - "PEMBANGUNAN" (bagian administrasi pembangunan, monev)
-   - "KESRA" (bagian kesejahteraan rakyat, keagamaan, sosial)
-   - "EKONOMI" (bagian perekonomian, sda)
-   - "HUKUM" (bagian hukum, perundang-undangan)
-   - "PBJ" (pengadaan barang dan jasa)
-   - "ORGANISASI" (bagian organisasi, kelembagaan, anjab)
-   - "PEMERINTAHAN" (bagian tata pemerintahan, perbatasan)
-   - "PROKOM" (bagian protokol dan komunikasi pimpinan, humas)
-   Jika tidak disebutkan eksplisit, analisis dari konteks kegiatan.
+Aturan Format & Ekstraksi Khusus:
+1. bagian: Jika tidak disebutkan secara eksplisit pada kuitansi/dokumen/suara, KOSONGKAN (kembalikan string kosong ""). Jika ada bagian Setda yang disebutkan (misal: "UMUM", "PEMBANGUNAN", "KESRA", "EKONOMI", "HUKUM", "PBJ", "ORGANISASI", "PEMERINTAHAN", "PROKOM"), gunakan nama bagian tersebut. Jika tidak pasti atau tidak tertulis jelas, KOSONGKAN ("").
 
-2. kategori:
-   - "Perjalanan Dinas" jika terkait SPT, tiket, transport, uang harian, perjalanan dinas luar/dalam daerah.
-   - "Belanja Langsung" jika belanja barang, jasa, konsumsi makan minum rapat, ATK, pemeliharaan, servis, sewa, dsb.
+2. kategori: Jika tidak disebutkan secara eksplisit, KOSONGKAN (kembalikan string kosong ""). Jika disebutkan, gunakan salah satu: "Belanja Langsung" atau "Perjalanan Dinas".
 
-3. uraian: Buat kalimat ringkas, formal, dan jelas mengenai maksud belanja/perjalanan SPJ.
+3. status: Nilai default adalah "REVISI" (sesuai standar verifikasi awal berkas Setda Kobar). Kembalikan "REVISI" sebagai status rekomendasi utama, kecuali user secara spesifik menyatakan ACC.
 
-4. pegawai: Daftar penerima / pegawai yang bertanggung jawab beserta nominal masing-masing (angka tanpa titik/koma desimal).
-   Jika hanya ada 1 penerima / toko / pihak ketiga, masukkan namanya dan total nominal kuitansi.
-   Jika ada rincian beberapa pegawai, pecah menjadi list penerima masing-masing.
+4. uraian: Salin dan susun secara LENGKAP & UTUH teks dari kolom "Untuk Pembayaran" pada kuitansi. Wajib menyertakan seluruh kalimat pekerjaan/belanja dan rincian dasar dokumen pendukung beserta nomor dan tanggalnya (seperti Surat Pesanan / SP, Berita Acara Pembayaran / BAP, Berita Acara Serah Terima Pekerjaan / BASTP, dll).
+Contoh format susunan uraian yang diharapkan:
+Pekerjaan Belanja Bahan-Bahan Lainnya Keperluan Sekretariat Daerah Kabupaten Kotawaringin Barat, Sub Kegiatan Penyediaan Peralatan Rumah Tangga, Kegiatan Administrasi Umum Perangkat Daerah
+Berdasarkan:
+- Surat Pesanan (SP) No.: 027/SP. 45/BU.III tanggal 19 Oktober 2026
+- Berita Acara Pembayaran (BAP) No.: 900/BAP.63/BU tanggal 22 Oktober 2026
+- Berita Acara Serah Terima Hasil Pekerjaan (BASTP) No.: 027/BASTP-52/X/2026/BU tanggal 21 Oktober 2026
 
-5. tglMasuk: Format YYYY-MM-DD. Ambil dari tanggal kuitansi / nota belanja / surat tugas jika ada. Jika tidak tertera jelas, gunakan tanggal hari ini.
+5. pegawai: Daftar penerima / rekanan penyedia (misal: "CV ESARINDO MULTIGUNA LESTARI") beserta nominal total rupiah kuitansi dalam bentuk angka bulat (misal: 6017310 dari "Rp. 6.017.310,-"). Jika kuitansi mencantumkan nama perusahaan/CV/Toko pada stempel penerima ("Yang Menerima"), utamakan nama CV / Toko rekanan tersebut.
 
-6. status: Rekomendasi status verifikasi: "ACC", "REVISI", atau "PROSES".
+6. ket: Default KOSONGKAN (kembalikan string kosong ""), kecuali jika ada catatan khusus dari masukan user.
 
-7. ket: Catatan verifikator mengenai kelengkapan berkas (misal: "Kuitansi bermaterai cukup", "Nota rincian belanja terlampir", dll).
+7. tglMasuk: Gunakan tanggal kuitansi/pembayaran (format YYYY-MM-DD), atau tanggal hari ini jika tidak tertera jelas.
 
-8. confidenceNote: Catatan singkat (1-2 kalimat) untuk user tentang apa saja yang berhasil dibaca oleh AI dari kuitansi/suara/teks.
+8. confidenceNote: Ringkasan singkat (1 kalimat) tentang rekanan, nominal, dan berkas yang berhasil dibaca.
 `;
 
-    // Attach image if present
+    // Attach document/image if present (supports PDF, JPG, PNG, WEBP)
     if (imageBase64) {
       parts.push({
         inlineData: {
@@ -121,7 +113,7 @@ Ketentuan Ekstraksi:
           contents: parts,
           config: {
             systemInstruction:
-              'Anda adalah asisten AI resmi verifikasi SPJ Pemerintah Kabupaten Kotawaringin Barat. Ekstraksi data harus teliti, nominal akurat sesuai angka di kuitansi/suara, dan nama terformat rapi.',
+              'Anda adalah asisten AI resmi verifikasi SPJ Pemerintah Kabupaten Kotawaringin Barat. Ekstraksi data harus presisi sesuai kuitansi, nama rekanan lengkap, uraian mencakup seluruh rincian dokumen pendukung, dan nominal rupiah akurat.',
             responseMimeType: 'application/json',
             responseSchema: {
               type: Type.OBJECT,
@@ -129,23 +121,24 @@ Ketentuan Ekstraksi:
                 bagian: {
                   type: Type.STRING,
                   description:
-                    'Salah satu dari: UMUM, PEMBANGUNAN, KESRA, EKONOMI, HUKUM, PBJ, ORGANISASI, PEMERINTAHAN, PROKOM',
+                    'Nama Bagian Setda Kobar jika tertera jelas, atau string kosong jika tidak tertera',
                 },
                 kategori: {
                   type: Type.STRING,
-                  description: 'Perjalanan Dinas atau Belanja Langsung',
+                  description: 'Belanja Langsung atau Perjalanan Dinas, atau string kosong jika tidak tertera',
                 },
                 uraian: {
                   type: Type.STRING,
-                  description: 'Uraian keperluan kegiatan SPJ secara lengkap dan baku',
+                  description:
+                    'Uraian keperluan belanja kuitansi secara lengkap beserta rincian SP, BAP, BASTP',
                 },
                 pegawai: {
                   type: Type.ARRAY,
-                  description: 'Daftar penerima dengan nama dan nominal rupiah',
+                  description: 'Daftar penerima belanja / nama CV rekanan dan nominal rupiah',
                   items: {
                     type: Type.OBJECT,
                     properties: {
-                      nama: { type: Type.STRING, description: 'Nama pegawai atau nama rekanan / toko' },
+                      nama: { type: Type.STRING, description: 'Nama rekanan / toko / pegawai penerima' },
                       nominal: { type: Type.NUMBER, description: 'Nominal dalam rupiah tanpa simbol/titik' },
                     },
                     required: ['nama', 'nominal'],
@@ -157,18 +150,18 @@ Ketentuan Ekstraksi:
                 },
                 status: {
                   type: Type.STRING,
-                  description: 'Status rekomendasi: ACC, REVISI, atau PROSES',
+                  description: 'Status verifikasi (default REVISI)',
                 },
                 ket: {
                   type: Type.STRING,
-                  description: 'Keterangan verifikasi berkas',
+                  description: 'Catatan tambahan (default kosong)',
                 },
                 confidenceNote: {
                   type: Type.STRING,
-                  description: 'Ringkasan apa saja data yang berhasil diekstrak oleh AI',
+                  description: 'Ringkasan ekstraksi berkas',
                 },
               },
-              required: ['bagian', 'kategori', 'uraian', 'pegawai', 'tglMasuk'],
+              required: ['uraian', 'pegawai', 'tglMasuk'],
             },
           },
         });
