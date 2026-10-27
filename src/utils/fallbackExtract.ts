@@ -19,6 +19,8 @@ export interface CompletedSpj {
   teksTerbaca: string;
   detail: DetectedItem[];
   confidenceNote: string;
+  /** true jika draf dibuat tanpa AI (AI gagal / tidak ada masukan) */
+  fallback: boolean;
 }
 
 const BULAN: Record<string, string> = {
@@ -110,6 +112,7 @@ export function completeSpj(raw: any, text: string, today: string, note = ''): C
           .filter((d: DetectedItem) => d.nilai)
           .slice(0, 60)
       : [],
+    fallback: Boolean(note),
     confidenceNote:
       note ||
       (typeof r.confidenceNote === 'string' && r.confidenceNote) ||

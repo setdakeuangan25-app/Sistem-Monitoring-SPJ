@@ -19,6 +19,7 @@ import {
   IconEdit,
   IconPdf,
   IconChevronRight,
+  IconAlertCircle,
 } from './Icons';
 
 const KOLOM_LABEL: Record<string, string> = {
@@ -114,6 +115,7 @@ export default function AiSpjInputView({
   const [detectedText, setDetectedText] = useState<string>('');
   const [detectedItems, setDetectedItems] = useState<DetectedItem[]>([]);
   const [confidenceNote, setConfidenceNote] = useState<string>('');
+  const [aiFallback, setAiFallback] = useState<boolean>(false);
 
   const keyRef = useRef(100);
   const nextKey = () => ++keyRef.current;
@@ -344,6 +346,35 @@ export default function AiSpjInputView({
     });
   };
 
+  // Perkecil foto sebelum dikirim (batas body fungsi Vercel ±4,5 MB). PDF dikirim apa adanya.
+  const prepareImage = async (file: File): Promise<{ data: string; mime: string }> => {
+    const original = async () => ({
+      data: await fileToBase64(file),
+      mime: file.type || (file.name.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg'),
+    });
+    if (!file.type.startsWith('image/') || file.type === 'image/gif' || file.type === 'image/svg+xml') {
+      return original();
+    }
+    try {
+      const bitmap = await createImageBitmap(file);
+      const MAX = 2000;
+      const scale = Math.min(1, MAX / Math.max(bitmap.width, bitmap.height));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(bitmap.width * scale);
+      canvas.height = Math.round(bitmap.height * scale);
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return original();
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+      const blob: Blob | null = await new Promise((r) => canvas.toBlob(r, 'image/jpeg', 0.85));
+      if (!blob || blob.size >= file.size) return original();
+      return { data: await fileToBase64(blob), mime: 'image/jpeg' };
+    } catch {
+      return original();
+    }
+  };
+
   // Presets loader including CamScanner PDF and CV ESARINDO format
   const loadPreset = async (type: 'esarindo-pdf' | 'esarindo-dikte' | 'atk' | 'perjadin') => {
     if (type === 'esarindo-pdf') {
@@ -415,10 +446,9 @@ export default function AiSpjInputView({
 
       if (imageFile) {
         setAnalysisStep('Mengonversi berkas dokumen (PDF/Foto)...');
-        imageBase64 = await fileToBase64(imageFile);
-        imageMimeType =
-          imageFile.type ||
-          (imageFile.name.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg');
+        const prepared = await prepareImage(imageFile);
+        imageBase64 = prepared.data;
+        imageMimeType = prepared.mime;
       }
 
       // Audio hanya dikirim jika ada isinya dan transkrip belum tersedia
@@ -437,6 +467,12 @@ export default function AiSpjInputView({
         );
       } else {
         setAnalysisStep('Gemini AI sedang membaca isi kuitansi & mengekstrak data...');
+        // Server serverless (Vercel) membatasi body ±4,5 MB; server lokal tidak
+        const isLocal = /^(localhost|127\.|192\.168\.)/.test(window.location.hostname);
+        const payloadSize = (imageBase64?.length || 0) + (audioBase64?.length || 0) + fullText.length;
+        if (!isLocal && payloadSize > 4_200_000) {
+          throw new Error('Berkas terlalu besar (maks ±3 MB). Perkecil PDF atau foto ulang dengan resolusi lebih rendah');
+        }
         const response = await fetch('/api/gemini/extract-spj', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -451,7 +487,12 @@ export default function AiSpjInputView({
         });
         const result = await response.json().catch(() => null);
         if (!response.ok || !result?.success) {
-          throw new Error(result?.error || 'Gagal mengekstrak data dari masukan.');
+          if (result === null) {
+            throw new Error(
+              `Endpoint /api/gemini/extract-spj tidak ditemukan atau tidak mengembalikan JSON (HTTP ${response.status}). Pastikan fungsi API sudah ter-deploy`,
+            );
+          }
+          throw new Error(result?.error || `Gagal mengekstrak data dari masukan (HTTP ${response.status})`);
         }
         raw = result.data;
       }
@@ -500,6 +541,7 @@ export default function AiSpjInputView({
       setPegawaiRows([{ key: nextKey(), nama: '', nominal: '' }]);
     }
 
+    setAiFallback(Boolean(raw.fallback));
     setHasExtracted(true);
     setIsAnalyzing(false);
     setAnalysisStep('');
@@ -997,17 +1039,23 @@ export default function AiSpjInputView({
                   <div
                     className="p-3 mb-3 rounded-2xl d-flex align-items-start gap-2.5"
                     style={{
-                      backgroundColor: '#eff6ff',
-                      border: '1px solid #bfdbfe',
-                      color: '#1e40af',
+                      backgroundColor: aiFallback ? '#fffbeb' : '#eff6ff',
+                      border: aiFallback ? '1px solid #fcd34d' : '1px solid #bfdbfe',
+                      color: aiFallback ? '#92400e' : '#1e40af',
                     }}
                   >
                     <div className="mt-0.5">
-                      <IconCheck size={16} color="#2563eb" />
+                      {aiFallback ? (
+                        <IconAlertCircle size={16} color="#d97706" />
+                      ) : (
+                        <IconCheck size={16} color="#2563eb" />
+                      )}
                     </div>
                     <div className="flex-grow-1 text-xs">
-                      <span className="font-bold block mb-0.5">Hasil Pembacaan Dokumen AI:</span>
-                      <span className="text-blue-900">{confidenceNote}</span>
+                      <span className="font-bold block mb-0.5">
+                        {aiFallback ? 'AI Tidak Digunakan (Draf Otomatis):' : 'Hasil Pembacaan Dokumen AI:'}
+                      </span>
+                      <span style={{ color: 'inherit' }}>{confidenceNote}</span>
                     </div>
                   </div>
                 )}
