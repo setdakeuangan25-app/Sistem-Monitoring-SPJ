@@ -430,7 +430,7 @@ export default function Register({
                   style={{ width: colWidths.nama, minWidth: colWidths.nama }}
                   className="th-sticky"
                 >
-                  <span>Nama Pegawai</span>
+                  <span>Nama Penerima</span>
                   <div
                     className="resizer-handle"
                     onMouseDown={(e) => handleResizeStart(e, 'nama')}

@@ -20,7 +20,7 @@ export function cetakKartuSPJ(item: Spj) {
 
   const DPI = 150;
   const MM = DPI / 25.4;
-  const cardW = Math.round(280 * MM); // lebar kartu 28 cm, tinggi menyesuaikan isi
+  const cardW = Math.round(250 * MM); // lebar kartu 25 cm, tinggi menyesuaikan isi
   const hdrH = Math.round(18 * MM);
   const subH = Math.round(8 * MM);
   const lineH = Math.round(6 * MM);
@@ -141,7 +141,7 @@ export function cetakKartuSPJ(item: Spj) {
   let y = hdrH + subH + Math.round(6.5 * MM);
   y = drawRow('Nomor Urut / Bagian', (item.no || '-') + ' \u2014 ' + (item.bagian || '-'), y, true);
   y = drawRow('Uraian SPJ', uraianTeks, y, false);
-  y = drawRow('Dari', parsed.names.join(', ') || '-', y, false);
+  y = drawRow('Nama Penerima', parsed.names.join(', ') || '-', y, false);
   y = drawRow('Tgl. Masuk Berkas', tglMasuk, y, false);
   y = drawRow('Tgl. Perbaikan / Keluar', tglKeluar, y, false);
 
