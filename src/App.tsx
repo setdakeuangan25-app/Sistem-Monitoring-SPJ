@@ -326,7 +326,7 @@ function Shell({ session }: { session: Session }) {
                 >
                   <IconSparkles size={19} />
                 </span>
-                <span className="nav-label d-flex align-items-center justify-content-between flex-grow-1">
+                <span className="nav-label nav-label-ai">
                   <span>Input SPJ AI</span>
                   <span className="nav-badge-ai">Cerdas</span>
                 </span>

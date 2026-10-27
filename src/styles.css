@@ -1778,7 +1778,7 @@ body {
   .app-sidebar.sidebar-auto:not(:hover) .nav-label,
   .app-sidebar.sidebar-auto:not(:hover) .user-details,
   .app-sidebar.sidebar-auto:not(:hover) .btn-hide-sidebar {
-    display: none;
+    display: none !important;
   }
   .app-sidebar.sidebar-auto:not(:hover) .brand-section {
     padding: 4px 0 24px 0;
@@ -2479,3 +2479,29 @@ body {
   .metric-card-full:hover::after { animation: none !important; }
   .nav-pill-icon, .footer-arrow, .btn-topbar-reload svg { transition: none !important; }
 }
+
+/* Label menu AI (badge di kanan) + auto hide yang halus */
+.nav-label-ai {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-grow: 1;
+  gap: 8px;
+}
+@media (min-width: 901px) {
+  .app-sidebar.sidebar-auto {
+    overflow: hidden;
+    transition: width 0.32s var(--ai-ease), box-shadow 0.32s var(--ai-ease);
+  }
+  .app-sidebar.sidebar-auto .nav-label,
+  .app-sidebar.sidebar-auto .brand-text,
+  .app-sidebar.sidebar-auto .user-details {
+    white-space: nowrap;
+  }
+  .app-sidebar.sidebar-auto:hover .nav-label,
+  .app-sidebar.sidebar-auto:hover .brand-text,
+  .app-sidebar.sidebar-auto:hover .user-details {
+    animation: aiFadeIn 0.28s ease-out 0.08s backwards;
+  }
+}
+@keyframes aiFadeIn { from { opacity: 0; } to { opacity: 1; } }

@@ -10,7 +10,7 @@ export function cetakKartuSPJ(item: Spj) {
   const uraianTeks = item.uraian || '-';
   const tglMasuk = formatTanggalIndo(item.tglMasuk);
   const tglKeluar = formatTanggalIndo(item.tglKeluar);
-  const catatan = item.ket || '-';
+  const catatan = (item.ket || '').trim() || '-';
 
   // ---- Tema warna ----
   const isPerdin = /perjalanan.?dinas/i.test(item.kategori || '');
@@ -40,17 +40,23 @@ export function cetakKartuSPJ(item: Spj) {
 
   function measureWrap(text: string, maxW: number, fontStr: string): string[] {
     mCtx.font = fontStr;
-    const words = text.split(' ');
     const lines: string[] = [];
-    let line = '';
-    for (const w of words) {
-      const test = line ? line + ' ' + w : w;
-      if (mCtx.measureText(test).width > maxW && line) {
-        lines.push(line);
-        line = w;
-      } else line = test;
+    // Hormati enter/paragraf baru dari aplikasi; baris kosong dipertahankan sebagai jarak paragraf
+    for (const para of text.replace(/\r\n?/g, '\n').split('\n')) {
+      if (!para.trim()) {
+        lines.push('');
+        continue;
+      }
+      let line = '';
+      for (const w of para.split(' ')) {
+        const test = line ? line + ' ' + w : w;
+        if (mCtx.measureText(test).width > maxW && line) {
+          lines.push(line);
+          line = w;
+        } else line = test;
+      }
+      if (line) lines.push(line);
     }
-    if (line) lines.push(line);
     return lines;
   }
 
@@ -116,19 +122,8 @@ export function cetakKartuSPJ(item: Spj) {
   ctx.textAlign = 'left';
 
   function wrapText(text: string, maxW: number): string[] {
-    ctx.font = fs + 'px Arial';
-    const words = text.split(' ');
-    const lines: string[] = [];
-    let line = '';
-    for (const w of words) {
-      const test = line ? line + ' ' + w : w;
-      if (ctx.measureText(test).width > maxW && line) {
-        lines.push(line);
-        line = w;
-      } else line = test;
-    }
-    if (line) lines.push(line);
-    return lines;
+    // Sama dengan perhitungan tinggi (measureWrap) agar tinggi kartu & gambar selalu cocok
+    return measureWrap(text, maxW, fs + 'px Arial');
   }
 
   function drawRow(label: string, value: string, yPos: number, bold: boolean): number {
@@ -184,6 +179,7 @@ export function cetakKartuSPJ(item: Spj) {
     const bH2 = Math.round(5.2 * MM);
     ctx.font = 'bold ' + fs + 'px Arial';
     catatanLines.forEach((ln, i) => {
+      if (!ln) return; // baris kosong = jarak paragraf, tanpa blok merah
       const ty = y + i * lh;
       const tw = ctx.measureText(ln).width;
       ctx.fillStyle = '#dc2626';
