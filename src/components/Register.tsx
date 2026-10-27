@@ -248,10 +248,9 @@ export default function Register({
         {/* Row 4: Date Range Filter */}
         <div className="filter-row-group">
           <span className="filter-row-label">Periode:</span>
-          <div className="d-flex align-items-center gap-2 flex-wrap">
+          <div className="periode-compact">
             <select
-              className="form-select form-select-sm"
-              style={{ width: 140, borderRadius: 9999, fontSize: '0.78rem' }}
+              aria-label="Jenis tanggal"
               value={filters.dateField}
               onChange={(e) => patch({ dateField: e.target.value as DateField })}
             >
@@ -260,29 +259,29 @@ export default function Register({
               <option value="tglBerkas">Tgl Berkas</option>
               <option value="tglBayar">Tgl Bayar</option>
             </select>
+            <span className="periode-divider" aria-hidden="true" />
             <input
               type="date"
-              className="form-control form-control-sm"
-              style={{ width: 135, borderRadius: 9999, fontSize: '0.78rem' }}
+              aria-label="Dari tanggal"
               value={filters.dateFrom}
               onChange={(e) => patch({ dateFrom: e.target.value })}
             />
-            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>s/d</span>
+            <span className="periode-sep">–</span>
             <input
               type="date"
-              className="form-control form-control-sm"
-              style={{ width: 135, borderRadius: 9999, fontSize: '0.78rem' }}
+              aria-label="Sampai tanggal"
               value={filters.dateTo}
               onChange={(e) => patch({ dateTo: e.target.value })}
             />
             {dateActive && (
               <button
                 type="button"
-                className="btn btn-sm btn-light border"
-                style={{ borderRadius: 9999, fontSize: '0.75rem' }}
+                className="periode-clear"
+                title="Hapus tanggal"
+                aria-label="Hapus tanggal"
                 onClick={() => patch({ dateFrom: '', dateTo: '' })}
               >
-                Hapus Tanggal
+                ×
               </button>
             )}
           </div>

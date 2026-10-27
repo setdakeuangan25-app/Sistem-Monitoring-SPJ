@@ -2,7 +2,7 @@
 <html lang="id">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
     <title>Sistem Monitoring SPJ - Setda Kobar</title>
     <meta name="description" content="Aplikasi Sistem Monitoring Surat Pertanggungjawaban (SPJ) Bagian Umum dan Keuangan Sekretariat Daerah Kotawaringin Barat." />
     <meta property="og:title" content="Sistem Monitoring SPJ - Setda Kobar" />
@@ -10,6 +10,18 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+      <script>
+      // Kunci zoom di perangkat mobile (pinch & double-tap), termasuk iOS Safari
+      (function () {
+        var stop = function (e) { e.preventDefault(); };
+        ['gesturestart', 'gesturechange', 'gestureend'].forEach(function (n) {
+          document.addEventListener(n, stop);
+        });
+        document.addEventListener('touchmove', function (e) {
+          if (e.touches && e.touches.length > 1) e.preventDefault();
+        }, { passive: false });
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

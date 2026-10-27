@@ -20,7 +20,7 @@ export function cetakKartuSPJ(item: Spj) {
 
   const DPI = 150;
   const MM = DPI / 25.4;
-  const cardW = Math.round(178 * MM);
+  const cardW = Math.round(280 * MM); // lebar kartu 28 cm, tinggi menyesuaikan isi
   const hdrH = Math.round(18 * MM);
   const subH = Math.round(8 * MM);
   const lineH = Math.round(6 * MM);

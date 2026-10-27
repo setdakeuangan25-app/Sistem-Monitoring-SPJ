@@ -2505,3 +2505,59 @@ body {
   }
 }
 @keyframes aiFadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+/* Filter periode ringkas: satu pil, tanpa kotak terpisah */
+.periode-compact {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  max-width: 100%;
+  padding: 2px 6px 2px 4px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 9999px;
+  transition: border-color 0.25s ease, box-shadow 0.3s var(--ai-ease);
+}
+.periode-compact:focus-within {
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.14);
+}
+.periode-compact select,
+.periode-compact input[type='date'] {
+  min-width: 0;
+  padding: 4px 6px;
+  border: 0;
+  outline: none;
+  background-color: transparent;
+  font-size: 0.76rem;
+  color: #334155;
+  box-shadow: none;
+}
+.periode-compact select { width: auto; font-weight: 700; color: #475569; cursor: pointer; }
+.periode-compact input[type='date'] { width: 118px; }
+.periode-divider { width: 1px; height: 16px; background: #e2e8f0; margin: 0 2px; }
+.periode-sep { color: #94a3b8; font-size: 0.8rem; }
+.periode-clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px; height: 20px;
+  margin-left: 2px;
+  border: 0;
+  border-radius: 50%;
+  background: #f1f5f9;
+  color: #64748b;
+  font-size: 0.95rem;
+  line-height: 1;
+  cursor: pointer;
+  animation: aiPop 0.3s var(--ai-ease) both;
+  transition: background-color 0.2s, color 0.2s, transform 0.2s var(--ai-ease);
+}
+.periode-clear:hover { background: #fee2e2; color: #dc2626; transform: scale(1.1); }
+@media (max-width: 520px) {
+  .periode-compact { width: 100%; }
+  .periode-compact input[type='date'] { flex: 1 1 0; width: auto; }
+}
+
+/* Cegah zoom dobel-ketuk di layar sentuh */
+html, body, button, a, input, select, textarea { touch-action: manipulation; }
