@@ -74,13 +74,21 @@ Berdasarkan:
 
 5. pegawai: Daftar penerima / rekanan penyedia (misal: "CV ESARINDO MULTIGUNA LESTARI") beserta nominal total rupiah kuitansi dalam bentuk angka bulat (misal: 6017310 dari "Rp. 6.017.310,-"). Jika kuitansi mencantumkan nama perusahaan/CV/Toko pada stempel penerima ("Yang Menerima"), utamakan nama CV / Toko rekanan tersebut.
 
-6. ket: Default KOSONGKAN (kembalikan string kosong ""), kecuali jika ada catatan khusus dari masukan user.
+6. ket: Isi dengan informasi penting yang TERBACA di dokumen tetapi tidak punya kolom sendiri, satu informasi per baris dengan format "Label: nilai", dipisah baris baru. Contoh: No. Kuitansi, Kegiatan, Sub Kegiatan, nama PPTK/Bendahara/Pengguna Anggaran/penandatangan, terbilang bila berbeda dari angka. JANGAN menduplikasi isi uraian, nama penerima, nominal, atau tanggal yang sudah masuk kolom lain. Tambahkan juga catatan khusus dari user bila ada. Kosongkan jika tidak ada.
 
 7. tglMasuk: Gunakan tanggal kuitansi/pembayaran (format YYYY-MM-DD), atau tanggal hari ini jika tidak tertera jelas.
 
 8. confidenceNote: Ringkasan singkat (1 kalimat) tentang rekanan, nominal, dan berkas yang berhasil dibaca.
 
 9. Jika rekaman suara/dikte kosong, tidak jelas, atau tidak berisi data SPJ, JANGAN gagal: gunakan dokumen/foto dan teks lain yang tersedia. Jika hanya teks pendek yang ada, susun uraian dan pegawai sebaik mungkin dari teks itu. Selalu kembalikan JSON lengkap.
+
+10. teksTerbaca: Transkripsi (OCR) SELURUH teks yang terlihat pada foto/dokumen, sesuai urutan baca dari atas ke bawah. Baca juga teks miring, buram, stempel, tulisan tangan, dan tabel; tulis [tidak terbaca] untuk bagian yang benar-benar tidak bisa dibaca. Jangan mengarang teks yang tidak ada.
+
+11. detail: Kelompokkan SETIAP potongan informasi penting dari teks yang terbaca menjadi daftar item {kelompok, label, nilai, kolom}. kelompok adalah salah satu dari: "Identitas Dokumen", "Rekanan & Pembayaran", "Pekerjaan & Kegiatan", "Dokumen Pendukung", "Tanggal", "Penandatangan", "Lainnya". kolom adalah kolom form tempat nilai itu dimasukkan: bagian, kategori, uraian, pegawai, tglMasuk, tglBerkas, tglBayar, tglKeluar, ket, atau tidak_dipakai.
+
+12. tglBerkas, tglBayar, tglKeluar (format YYYY-MM-DD): isi HANYA jika tertulis eksplisit dengan label yang sesuai (misalnya "tanggal bayar", "SPM", "berkas lengkap", "tanggal keluar"). Jika tidak tertulis jelas, kembalikan string kosong. Jangan menebak.
+
+13. Verifikasi: bandingkan nominal angka dengan tulisan terbilang pada kuitansi. Jika berbeda, gunakan nominal yang paling konsisten dan sebutkan perbedaannya di confidenceNote. Jika ada beberapa penerima atau beberapa kuitansi pada satu berkas, buat satu entri pegawai untuk setiap penerima.
 `;
 
     // Attach document/image if present (supports PDF, JPG, PNG, WEBP)
@@ -131,6 +139,7 @@ Berdasarkan:
           config: {
             systemInstruction:
               'Anda adalah asisten AI resmi verifikasi SPJ Pemerintah Kabupaten Kotawaringin Barat. Ekstraksi data harus presisi sesuai kuitansi, nama rekanan lengkap, uraian mencakup seluruh rincian dokumen pendukung, dan nominal rupiah akurat.',
+            temperature: 0,
             responseMimeType: 'application/json',
             responseSchema: {
               type: Type.OBJECT,
@@ -164,6 +173,40 @@ Berdasarkan:
                 tglMasuk: {
                   type: Type.STRING,
                   description: 'Tanggal dalam format YYYY-MM-DD',
+                },
+                tglBerkas: {
+                  type: Type.STRING,
+                  description: 'Tanggal berkas lengkap YYYY-MM-DD, kosong jika tidak tertulis eksplisit',
+                },
+                tglBayar: {
+                  type: Type.STRING,
+                  description: 'Tanggal bayar/SPM YYYY-MM-DD, kosong jika tidak tertulis eksplisit',
+                },
+                tglKeluar: {
+                  type: Type.STRING,
+                  description: 'Tanggal keluar YYYY-MM-DD, kosong jika tidak tertulis eksplisit',
+                },
+                teksTerbaca: {
+                  type: Type.STRING,
+                  description: 'Transkripsi seluruh teks yang terbaca pada foto/dokumen sesuai urutan baca',
+                },
+                detail: {
+                  type: Type.ARRAY,
+                  description: 'Semua informasi penting yang terbaca, dikelompokkan dan dipetakan ke kolom form',
+                  items: {
+                    type: Type.OBJECT,
+                    properties: {
+                      kelompok: { type: Type.STRING, description: 'Nama kelompok informasi' },
+                      label: { type: Type.STRING, description: 'Label informasi, misal No. Kuitansi' },
+                      nilai: { type: Type.STRING, description: 'Isi informasi sesuai dokumen' },
+                      kolom: {
+                        type: Type.STRING,
+                        description:
+                          'bagian, kategori, uraian, pegawai, tglMasuk, tglBerkas, tglBayar, tglKeluar, ket, atau tidak_dipakai',
+                      },
+                    },
+                    required: ['kelompok', 'label', 'nilai', 'kolom'],
+                  },
                 },
                 status: {
                   type: Type.STRING,

@@ -1,11 +1,23 @@
+export interface DetectedItem {
+  kelompok: string;
+  label: string;
+  nilai: string;
+  kolom: string;
+}
+
 export interface CompletedSpj {
   bagian: string;
   kategori: string;
   uraian: string;
   pegawai: { nama: string; nominal: number }[];
   tglMasuk: string;
+  tglBerkas: string;
+  tglBayar: string;
+  tglKeluar: string;
   status: string;
   ket: string;
+  teksTerbaca: string;
+  detail: DetectedItem[];
   confidenceNote: string;
 }
 
@@ -81,8 +93,23 @@ export function completeSpj(raw: any, text: string, today: string, note = ''): C
     uraian: (typeof r.uraian === 'string' && r.uraian.trim()) || src.slice(0, 1200),
     pegawai,
     tglMasuk: isIsoDate(r.tglMasuk) ? r.tglMasuk : guessDate(src) || today,
+    tglBerkas: isIsoDate(r.tglBerkas) ? r.tglBerkas : '',
+    tglBayar: isIsoDate(r.tglBayar) ? r.tglBayar : '',
+    tglKeluar: isIsoDate(r.tglKeluar) ? r.tglKeluar : '',
     status: typeof r.status === 'string' ? r.status : 'REVISI',
     ket: typeof r.ket === 'string' ? r.ket : '',
+    teksTerbaca: typeof r.teksTerbaca === 'string' ? r.teksTerbaca.trim() : '',
+    detail: Array.isArray(r.detail)
+      ? r.detail
+          .map((d: any) => ({
+            kelompok: String(d?.kelompok ?? 'Lainnya').trim() || 'Lainnya',
+            label: String(d?.label ?? '').trim(),
+            nilai: String(d?.nilai ?? '').trim(),
+            kolom: String(d?.kolom ?? 'tidak_dipakai').trim() || 'tidak_dipakai',
+          }))
+          .filter((d: DetectedItem) => d.nilai)
+          .slice(0, 60)
+      : [],
     confidenceNote:
       note ||
       (typeof r.confidenceNote === 'string' && r.confidenceNote) ||

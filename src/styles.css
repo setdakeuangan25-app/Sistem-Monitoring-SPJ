@@ -2561,3 +2561,64 @@ body {
 
 /* Cegah zoom dobel-ketuk di layar sentuh */
 html, body, button, a, input, select, textarea { touch-action: manipulation; }
+
+/* Panel teks terdeteksi (OCR) & pengelompokan ke kolom form */
+.ai-detect {
+  margin-bottom: 1rem;
+  padding: 12px 14px;
+  background: linear-gradient(180deg, #faf5ff, #ffffff);
+  border: 1px solid #e9d5ff;
+  border-radius: 16px;
+}
+.ai-detect-head {
+  display: flex; align-items: center; gap: 8px;
+  margin-bottom: 8px;
+  font-size: 0.8rem; font-weight: 800; color: #6b21a8;
+}
+.ai-detect-count {
+  margin-left: auto;
+  padding: 2px 8px;
+  font-size: 0.68rem; font-weight: 700;
+  color: #7c3aed; background: #ede9fe;
+  border-radius: 9999px;
+}
+.ai-detect-group { margin-top: 8px; animation: aiFadeUp 0.45s var(--ai-ease) backwards; animation-delay: var(--g, 0ms); }
+.ai-detect-group-title {
+  margin-bottom: 4px;
+  font-size: 0.66rem; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase;
+  color: #94a3b8;
+}
+.ai-detect-item {
+  display: grid;
+  grid-template-columns: minmax(80px, 28%) 1fr auto;
+  align-items: start; gap: 8px;
+  padding: 5px 8px;
+  font-size: 0.74rem;
+  border-radius: 10px;
+  transition: background-color 0.2s ease;
+}
+.ai-detect-item:hover { background: #f5f3ff; }
+.ai-detect-label { font-weight: 700; color: #475569; }
+.ai-detect-value { color: #0f172a; word-break: break-word; }
+.ai-detect-badge {
+  padding: 2px 8px;
+  font-size: 0.64rem; font-weight: 700; white-space: nowrap;
+  color: #047857; background: #d1fae5;
+  border-radius: 9999px;
+}
+.ai-detect-badge.is-muted { color: #64748b; background: #f1f5f9; }
+.ai-detect-raw { margin-top: 10px; }
+.ai-detect-raw summary { cursor: pointer; font-size: 0.72rem; font-weight: 700; color: #7c3aed; }
+.ai-detect-raw pre {
+  margin: 6px 0 0; padding: 10px;
+  max-height: 180px; overflow: auto;
+  font-size: 0.7rem; white-space: pre-wrap;
+  color: #334155; background: #ffffff;
+  border: 1px solid #e2e8f0; border-radius: 12px;
+}
+.ai-date-cap { display: block; margin-bottom: 2px; font-size: 0.66rem; font-weight: 700; color: #92400e; }
+@media (max-width: 520px) {
+  .ai-detect-item { grid-template-columns: 1fr; gap: 2px; }
+  .ai-detect-badge { justify-self: start; }
+}
+@media (prefers-reduced-motion: reduce) { .ai-detect-group { animation: none !important; } }

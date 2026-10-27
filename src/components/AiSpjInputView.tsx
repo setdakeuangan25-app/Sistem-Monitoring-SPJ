@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { BAGIAN_LIST, KATEGORI_LIST, type SpjInput, type Status } from '../types';
 import { formatRibuan, formatRp, onlyDigits, titleCase, todayLocal } from '../utils/format';
 import { showToast } from '../lib/alert';
-import { completeSpj } from '../utils/fallbackExtract';
+import { completeSpj, type DetectedItem } from '../utils/fallbackExtract';
 import {
   IconSparkles,
   IconMic,
@@ -21,12 +21,28 @@ import {
   IconChevronRight,
 } from './Icons';
 
+const KOLOM_LABEL: Record<string, string> = {
+  bagian: 'Bagian',
+  kategori: 'Kategori',
+  uraian: 'Uraian',
+  pegawai: 'Penerima & Nominal',
+  tglMasuk: 'Tgl Masuk',
+  tglBerkas: 'Tgl Berkas',
+  tglBayar: 'Tgl Bayar',
+  tglKeluar: 'Tgl Keluar',
+  ket: 'Catatan',
+  tidak_dipakai: 'Tidak dipakai',
+};
+
 export interface ExtractedSpjData {
   bagian: string;
   kategori: string;
   uraian: string;
   pegawai: { nama: string; nominal: number }[];
   tglMasuk: string;
+  tglBerkas?: string;
+  tglBayar?: string;
+  tglKeluar?: string;
   status?: string;
   ket?: string;
   confidenceNote?: string;
@@ -92,6 +108,11 @@ export default function AiSpjInputView({
   const [draftUraian, setDraftUraian] = useState<string>('');
   const [draftTglMasuk, setDraftTglMasuk] = useState<string>(todayLocal()); // Default HARI INI
   const [draftKet, setDraftKet] = useState<string>(''); // Default KOSONG
+  const [draftTglBerkas, setDraftTglBerkas] = useState<string>('');
+  const [draftTglBayar, setDraftTglBayar] = useState<string>('');
+  const [draftTglKeluar, setDraftTglKeluar] = useState<string>('');
+  const [detectedText, setDetectedText] = useState<string>('');
+  const [detectedItems, setDetectedItems] = useState<DetectedItem[]>([]);
   const [confidenceNote, setConfidenceNote] = useState<string>('');
 
   const keyRef = useRef(100);
@@ -457,6 +478,11 @@ export default function AiSpjInputView({
     setDraftUraian(raw.uraian || '');
     setDraftTglMasuk(raw.tglMasuk || today);
     setDraftKet(raw.ket || '');
+    setDraftTglBerkas(raw.tglBerkas || '');
+    setDraftTglBayar(raw.tglBayar || '');
+    setDraftTglKeluar(raw.tglKeluar || '');
+    setDetectedText(raw.teksTerbaca || '');
+    setDetectedItems(Array.isArray(raw.detail) ? raw.detail : []);
     setConfidenceNote(
       raw.confidenceNote ||
         'Data kuitansi berhasil diekstrak dan disesuaikan dengan format SPJ Setda Kobar.',
@@ -537,9 +563,9 @@ export default function AiSpjInputView({
         uraian: draftUraian.trim(),
         status: (draftStatus || null) as Status,
         tglMasuk: draftTglMasuk,
-        tglKeluar: '',
-        tglBerkas: '',
-        tglBayar: '',
+        tglKeluar: draftTglKeluar,
+        tglBerkas: draftTglBerkas,
+        tglBayar: draftTglBayar,
         ket: draftKet.trim(),
         pegawai,
       });
@@ -564,6 +590,9 @@ export default function AiSpjInputView({
       pegawai:
         pegawai.length > 0 ? pegawai : [{ nama: 'Penerima Belanja', nominal: totalNominal }],
       tglMasuk: draftTglMasuk,
+      tglBerkas: draftTglBerkas,
+      tglBayar: draftTglBayar,
+      tglKeluar: draftTglKeluar,
       status: draftStatus,
       ket: draftKet,
       confidenceNote,
@@ -582,6 +611,11 @@ export default function AiSpjInputView({
     setDraftKategori('');
     setDraftStatus('REVISI');
     setDraftKet('');
+    setDraftTglBerkas('');
+    setDraftTglBayar('');
+    setDraftTglKeluar('');
+    setDetectedText('');
+    setDetectedItems([]);
     setDraftTglMasuk(todayLocal());
     setPegawaiRows([{ key: nextKey(), nama: '', nominal: '' }]);
   };
@@ -978,6 +1012,43 @@ export default function AiSpjInputView({
                   </div>
                 )}
 
+                {/* Teks terdeteksi & pengelompokan ke kolom form */}
+                {(detectedItems.length > 0 || detectedText) && (
+                  <div className="ai-detect">
+                    <div className="ai-detect-head">
+                      <span className="ai-sparkle">
+                        <IconSparkles size={14} color="#7c3aed" />
+                      </span>
+                      <span>Teks Terdeteksi &amp; Pengelompokan</span>
+                      <span className="ai-detect-count">{detectedItems.length} item</span>
+                    </div>
+
+                    {Array.from(new Set(detectedItems.map((d) => d.kelompok))).map((grp, gi) => (
+                      <div key={grp} className="ai-detect-group" style={{ ['--g' as any]: `${gi * 60}ms` }}>
+                        <div className="ai-detect-group-title">{grp}</div>
+                        {detectedItems
+                          .filter((d) => d.kelompok === grp)
+                          .map((d, i) => (
+                            <div key={i} className="ai-detect-item">
+                              <span className="ai-detect-label">{d.label || '-'}</span>
+                              <span className="ai-detect-value">{d.nilai}</span>
+                              <span className={`ai-detect-badge ${d.kolom === 'tidak_dipakai' ? 'is-muted' : ''}`}>
+                                {KOLOM_LABEL[d.kolom] || d.kolom}
+                              </span>
+                            </div>
+                          ))}
+                      </div>
+                    ))}
+
+                    {detectedText && (
+                      <details className="ai-detect-raw">
+                        <summary>Lihat seluruh teks hasil baca (OCR)</summary>
+                        <pre>{detectedText}</pre>
+                      </details>
+                    )}
+                  </div>
+                )}
+
                 {/* Section 1: Identitas & Klasifikasi */}
                 <div className="form-section-block form-section-blue py-3 px-3.5 mb-3">
                   <div className="form-section-header mb-2.5 pb-2">
@@ -1185,12 +1256,49 @@ export default function AiSpjInputView({
                       <label className="form-label-modern label-rose text-xs mb-1">
                         Catatan Verifikator (Default Kosong)
                       </label>
-                      <input
-                        type="text"
+                      <textarea
+                        rows={3}
                         className="form-input-modern input-rose py-1 text-xs"
+                        style={{ resize: 'vertical' }}
                         value={draftKet}
                         onChange={(e) => setDraftKet(e.target.value)}
                         placeholder="Default kosong..."
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Tanggal alur berkas (terisi hanya jika tertulis jelas di dokumen) */}
+                <div className="form-section-block form-section-amber py-2.5 px-3 mb-3">
+                  <label className="form-label-modern label-amber text-xs mb-1">
+                    Tanggal Alur Berkas (Opsional, terisi jika tertulis jelas di dokumen)
+                  </label>
+                  <div className="row g-2">
+                    <div className="col-12 col-sm-4">
+                      <span className="ai-date-cap">Tgl Berkas Lengkap</span>
+                      <input
+                        type="date"
+                        className="form-input-modern input-amber py-1 text-xs"
+                        value={draftTglBerkas}
+                        onChange={(e) => setDraftTglBerkas(e.target.value)}
+                      />
+                    </div>
+                    <div className="col-12 col-sm-4">
+                      <span className="ai-date-cap">Tgl Bayar / SPM</span>
+                      <input
+                        type="date"
+                        className="form-input-modern input-amber py-1 text-xs"
+                        value={draftTglBayar}
+                        onChange={(e) => setDraftTglBayar(e.target.value)}
+                      />
+                    </div>
+                    <div className="col-12 col-sm-4">
+                      <span className="ai-date-cap">Tgl Keluar</span>
+                      <input
+                        type="date"
+                        className="form-input-modern input-amber py-1 text-xs"
+                        value={draftTglKeluar}
+                        onChange={(e) => setDraftTglKeluar(e.target.value)}
                       />
                     </div>
                   </div>
